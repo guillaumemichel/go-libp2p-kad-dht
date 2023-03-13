@@ -14,6 +14,7 @@ import (
 	//lint:ignore SA1019 TODO migrate away from gogo pb
 	"github.com/libp2p/go-msgio/protoio"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
 	kbucket "github.com/libp2p/go-libp2p-kbucket"
 )
@@ -245,7 +246,7 @@ func (c *DefaultCrawler) queryPeer(ctx context.Context, nextPeer peer.ID) *query
 		if err != nil {
 			panic(err)
 		}
-		peers, err := c.dhtRPC.GetClosestPeers(ctx, nextPeer, generatePeer)
+		peers, err := c.dhtRPC.GetClosestPeers(ctx, nextPeer, hashing.PeerKadID(generatePeer))
 		if err != nil {
 			logger.Debugf("error finding data on peer %v with cpl %d : %v", nextPeer, cpl, err)
 			retErr = err

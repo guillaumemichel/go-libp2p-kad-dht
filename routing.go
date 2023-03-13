@@ -16,6 +16,7 @@ import (
 	u "github.com/ipfs/go-ipfs-util"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	internalConfig "github.com/libp2p/go-libp2p-kad-dht/internal/config"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	"github.com/libp2p/go-libp2p-kad-dht/qpeerset"
 	kb "github.com/libp2p/go-libp2p-kbucket"
 	record "github.com/libp2p/go-libp2p-record"
@@ -28,12 +29,12 @@ import (
 
 // PutValue adds value corresponding to given Key.
 // This is the top level "Store" operation of the DHT
-func (dht *IpfsDHT) PutValue(ctx context.Context, key string, value []byte, opts ...routing.Option) (err error) {
+func (dht *IpfsDHT) PutValue(ctx context.Context, key hashing.KadKey, value []byte, opts ...routing.Option) (err error) {
 	if !dht.enableValues {
 		return routing.ErrNotSupported
 	}
 
-	logger.Debugw("putting value", "key", internal.LoggableRecordKeyString(key))
+	logger.Debugw("putting value", "key", hashing.HexKadID(key))
 
 	// don't even allow local users to put bad values.
 	if err := dht.Validator.Validate(key, value); err != nil {
@@ -100,7 +101,7 @@ type recvdVal struct {
 }
 
 // GetValue searches for the value corresponding to given Key.
-func (dht *IpfsDHT) GetValue(ctx context.Context, key string, opts ...routing.Option) (_ []byte, err error) {
+func (dht *IpfsDHT) GetValue(ctx context.Context, key hashing.KadKey, opts ...routing.Option) (_ []byte, err error) {
 	if !dht.enableValues {
 		return nil, routing.ErrNotSupported
 	}
@@ -129,12 +130,12 @@ func (dht *IpfsDHT) GetValue(ctx context.Context, key string, opts ...routing.Op
 	if best == nil {
 		return nil, routing.ErrNotFound
 	}
-	logger.Debugf("GetValue %v %x", internal.LoggableRecordKeyString(key), best)
+	logger.Debugf("GetValue %v %x", hashing.HexKadID(key), best)
 	return best, nil
 }
 
 // SearchValue searches for the value corresponding to given Key and streams the results.
-func (dht *IpfsDHT) SearchValue(ctx context.Context, key string, opts ...routing.Option) (<-chan []byte, error) {
+func (dht *IpfsDHT) SearchValue(ctx context.Context, key hashing.KadKey, opts ...routing.Option) (<-chan []byte, error) {
 	if !dht.enableValues {
 		return nil, routing.ErrNotSupported
 	}
@@ -182,7 +183,7 @@ func (dht *IpfsDHT) SearchValue(ctx context.Context, key string, opts ...routing
 	return out, nil
 }
 
-func (dht *IpfsDHT) searchValueQuorum(ctx context.Context, key string, valCh <-chan recvdVal, stopCh chan struct{},
+func (dht *IpfsDHT) searchValueQuorum(ctx context.Context, key hashing.KadKey, valCh <-chan recvdVal, stopCh chan struct{},
 	out chan<- []byte, nvals int) ([]byte, map[peer.ID]struct{}, bool) {
 	numResponses := 0
 	return dht.processValues(ctx, key, valCh,
@@ -204,7 +205,7 @@ func (dht *IpfsDHT) searchValueQuorum(ctx context.Context, key string, valCh <-c
 		})
 }
 
-func (dht *IpfsDHT) processValues(ctx context.Context, key string, vals <-chan recvdVal,
+func (dht *IpfsDHT) processValues(ctx context.Context, key hashing.KadKey, vals <-chan recvdVal,
 	newVal func(ctx context.Context, v recvdVal, better bool) bool) (best []byte, peersWithBest map[peer.ID]struct{}, aborted bool) {
 loop:
 	for {
@@ -227,7 +228,7 @@ loop:
 				}
 				sel, err := dht.Validator.Select(key, [][]byte{best, v.Val})
 				if err != nil {
-					logger.Warnw("failed to select best value", "key", internal.LoggableRecordKeyString(key), "error", err)
+					logger.Warnw("failed to select best value", "key", hashing.HexKadID(key), "error", err)
 					continue
 				}
 				if sel != 1 {
@@ -247,7 +248,7 @@ loop:
 	return
 }
 
-func (dht *IpfsDHT) updatePeerValues(ctx context.Context, key string, val []byte, peers []peer.ID) {
+func (dht *IpfsDHT) updatePeerValues(ctx context.Context, key hashing.KadKey, val []byte, peers []peer.ID) {
 	fixupRec := record.MakePutRecord(key, val)
 	for _, p := range peers {
 		go func(p peer.ID) {
@@ -269,11 +270,11 @@ func (dht *IpfsDHT) updatePeerValues(ctx context.Context, key string, val []byte
 	}
 }
 
-func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan struct{}) (<-chan recvdVal, <-chan *lookupWithFollowupResult) {
+func (dht *IpfsDHT) getValues(ctx context.Context, key hashing.KadKey, stopQuery chan struct{}) (<-chan recvdVal, <-chan *lookupWithFollowupResult) {
 	valCh := make(chan recvdVal, 1)
 	lookupResCh := make(chan *lookupWithFollowupResult, 1)
 
-	logger.Debugw("finding value", "key", internal.LoggableRecordKeyString(key))
+	logger.Debugw("finding value", "key", hashing.HexKadID(key))
 
 	if rec, err := dht.getLocal(ctx, key); rec != nil && err == nil {
 		select {
@@ -351,7 +352,7 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 		lookupResCh <- lookupRes
 
 		if ctx.Err() == nil {
-			dht.refreshRTIfNoShortcut(kb.ConvertKey(key), lookupRes)
+			dht.refreshRTIfNoShortcut(key[:], lookupRes)
 		}
 	}()
 
@@ -376,11 +377,20 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	} else if !key.Defined() {
 		return fmt.Errorf("invalid cid: undefined")
 	}
-	keyMH := key.Hash()
-	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH))
+
+	// computing second multihash
+	secondMH := hashing.SecondMultihash(key.Hash())
+	// getting the kademlia ID out of the second multihash
+	decoded, err := multihash.Decode(secondMH)
+	if err != nil {
+		return err
+	}
+	kadid := decoded.Digest
+
+	logger.Debugw("providing", "cid", key, "kadid", internal.LoggableProviderRecordBytes(kadid))
 
 	// add self locally
-	dht.providerStore.AddProvider(ctx, keyMH, peer.AddrInfo{ID: dht.self})
+	dht.providerStore.AddProvider(ctx, kadid, peer.AddrInfo{ID: dht.self})
 	if !brdcst {
 		return nil
 	}
@@ -407,7 +417,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	}
 
 	var exceededDeadline bool
-	peers, err := dht.GetClosestPeers(closerCtx, string(keyMH))
+	peers, err := dht.GetClosestPeers(closerCtx, [32]byte(kadid))
 	switch err {
 	case context.DeadlineExceeded:
 		// If the _inner_ deadline has been exceeded but the _outer_
@@ -427,8 +437,8 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		wg.Add(1)
 		go func(p peer.ID) {
 			defer wg.Done()
-			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(keyMH), p)
-			err := dht.protoMessenger.PutProvider(ctx, p, keyMH, dht.host)
+			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(secondMH), p)
+			err := dht.protoMessenger.PutProvider(ctx, p, secondMH, dht.host)
 			if err != nil {
 				logger.Debug(err)
 			}
@@ -442,15 +452,15 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 }
 
 // FindProviders searches until the context expires.
-func (dht *IpfsDHT) FindProviders(ctx context.Context, c cid.Cid) ([]peer.AddrInfo, error) {
+func (dht *IpfsDHT) FindProviders(ctx context.Context, key cid.Cid) ([]peer.AddrInfo, error) {
 	if !dht.enableProviders {
 		return nil, routing.ErrNotSupported
-	} else if !c.Defined() {
+	} else if !key.Defined() {
 		return nil, fmt.Errorf("invalid cid: undefined")
 	}
 
 	var providers []peer.AddrInfo
-	for p := range dht.FindProvidersAsync(ctx, c, dht.bucketSize) {
+	for p := range dht.FindProvidersAsync(ctx, key, dht.bucketSize) {
 		providers = append(providers, p)
 	}
 	return providers, nil
@@ -474,7 +484,7 @@ func (dht *IpfsDHT) FindProvidersAsync(ctx context.Context, key cid.Cid, count i
 	}
 	peerOut := make(chan peer.AddrInfo, chSize)
 
-	keyMH := key.Hash()
+	keyMH := hashing.SecondMultihash(key.Hash())
 
 	logger.Debugw("finding providers", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH))
 	go dht.findProvidersAsyncRoutine(ctx, keyMH, count, peerOut)
@@ -486,14 +496,14 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	findAll := count == 0
 
-	ps := make(map[peer.ID]peer.AddrInfo)
+	ps := make(map[peer.ID]struct{})
 	psLock := &sync.Mutex{}
-	psTryAdd := func(p peer.AddrInfo) bool {
+	psTryAdd := func(p peer.ID) bool {
 		psLock.Lock()
 		defer psLock.Unlock()
-		pi, ok := ps[p.ID]
-		if (!ok || ((len(pi.Addrs) == 0) && len(p.Addrs) > 0)) && (len(ps) < count || findAll) {
-			ps[p.ID] = p
+		_, ok := ps[p]
+		if !ok && (len(ps) < count || findAll) {
+			ps[p] = struct{}{}
 			return true
 		}
 		return false
@@ -510,7 +520,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	}
 	for _, p := range provs {
 		// NOTE: Assuming that this list of peers is unique
-		if psTryAdd(p) {
+		if psTryAdd(p.ID) {
 			select {
 			case peerOut <- p:
 			case <-ctx.Done():
@@ -525,7 +535,12 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	lookupRes, err := dht.runLookupWithFollowup(ctx, string(key),
+	keyKad, err := multihash.Decode(key)
+	if err != nil || len(keyKad.Digest) != hashing.Keysize {
+		return
+	}
+
+	lookupRes, err := dht.runLookupWithFollowup(ctx, hashing.KadKey(keyKad.Digest),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
@@ -544,7 +559,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			for _, prov := range provs {
 				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
-				if psTryAdd(*prov) {
+				if psTryAdd(prov.ID) {
 					logger.Debugf("using provider: %s", prov)
 					select {
 					case peerOut <- *prov:
@@ -576,6 +591,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	)
 
 	if err == nil && ctx.Err() == nil {
+		// TODOGUI: this is wrong
 		dht.refreshRTIfNoShortcut(kb.ConvertKey(string(key)), lookupRes)
 	}
 }
@@ -593,7 +609,9 @@ func (dht *IpfsDHT) FindPeer(ctx context.Context, id peer.ID) (_ peer.AddrInfo, 
 		return pi, nil
 	}
 
-	lookupRes, err := dht.runLookupWithFollowup(ctx, string(id),
+	peerKadid := hashing.PeerKadID(id)
+
+	lookupRes, err := dht.runLookupWithFollowup(ctx, peerKadid,
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
@@ -601,7 +619,7 @@ func (dht *IpfsDHT) FindPeer(ctx context.Context, id peer.ID) (_ peer.AddrInfo, 
 				ID:   p,
 			})
 
-			peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, id)
+			peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, peerKadid)
 			if err != nil {
 				logger.Debugf("error getting closer peers: %s", err)
 				return nil, err

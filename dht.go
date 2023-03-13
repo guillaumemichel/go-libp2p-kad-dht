@@ -15,8 +15,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/core/routing"
 
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	dhtcfg "github.com/libp2p/go-libp2p-kad-dht/internal/config"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/net"
 	"github.com/libp2p/go-libp2p-kad-dht/metrics"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
@@ -155,7 +155,6 @@ var (
 	_ routing.ContentRouting = (*IpfsDHT)(nil)
 	_ routing.Routing        = (*IpfsDHT)(nil)
 	_ routing.PeerRouting    = (*IpfsDHT)(nil)
-	_ routing.PubKeyFetcher  = (*IpfsDHT)(nil)
 	_ routing.ValueStore     = (*IpfsDHT)(nil)
 )
 
@@ -353,18 +352,18 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 }
 
 func makeRtRefreshManager(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutboundThreshold time.Duration) (*rtrefresh.RtRefreshManager, error) {
-	keyGenFnc := func(cpl uint) (string, error) {
+	keyGenFnc := func(cpl uint) (hashing.KadKey, error) {
 		p, err := dht.routingTable.GenRandPeerID(cpl)
-		return string(p), err
+		return hashing.PeerKadID(p), err
 	}
 
-	queryFnc := func(ctx context.Context, key string) error {
+	queryFnc := func(ctx context.Context, key hashing.KadKey) error {
 		_, err := dht.GetClosestPeers(ctx, key)
 		return err
 	}
 
 	pingFnc := func(ctx context.Context, p peer.ID) error {
-		_, err := dht.protoMessenger.GetClosestPeers(ctx, p, p) // don't use the PING message type as it's deprecated
+		_, err := dht.protoMessenger.GetClosestPeers(ctx, p, hashing.PeerKadID(p)) // don't use the PING message type as it's deprecated
 		return err
 	}
 
@@ -553,18 +552,18 @@ func (dht *IpfsDHT) persistRTPeersInPeerStore() {
 //
 // returns nil, nil when either nothing is found or the value found doesn't properly validate.
 // returns nil, some_error when there's a *datastore* error (i.e., something goes very wrong)
-func (dht *IpfsDHT) getLocal(ctx context.Context, key string) (*recpb.Record, error) {
-	logger.Debugw("finding value in datastore", "key", internal.LoggableRecordKeyString(key))
+func (dht *IpfsDHT) getLocal(ctx context.Context, key hashing.KadKey) (*recpb.Record, error) {
+	logger.Debugw("finding value in datastore", "key", hashing.HexKadID(key))
 
 	rec, err := dht.getRecordFromDatastore(ctx, mkDsKey(key))
 	if err != nil {
-		logger.Warnw("get local failed", "key", internal.LoggableRecordKeyString(key), "error", err)
+		logger.Warnw("get local failed", "key", hashing.HexKadID(key), "error", err)
 		return nil, err
 	}
 
 	// Double check the key. Can't hurt.
 	if rec != nil && string(rec.GetKey()) != key {
-		logger.Errorw("BUG: found a DHT record that didn't match it's key", "expected", internal.LoggableRecordKeyString(key), "got", rec.GetKey())
+		logger.Errorw("BUG: found a DHT record that didn't match it's key", "expected", hashing.HexKadID(key), "got", rec.GetKey())
 		return nil, nil
 
 	}
@@ -572,10 +571,10 @@ func (dht *IpfsDHT) getLocal(ctx context.Context, key string) (*recpb.Record, er
 }
 
 // putLocal stores the key value pair in the datastore
-func (dht *IpfsDHT) putLocal(ctx context.Context, key string, rec *recpb.Record) error {
+func (dht *IpfsDHT) putLocal(ctx context.Context, key hashing.KadKey, rec *recpb.Record) error {
 	data, err := proto.Marshal(rec)
 	if err != nil {
-		logger.Warnw("failed to put marshal record for local put", "error", err, "key", internal.LoggableRecordKeyString(key))
+		logger.Warnw("failed to put marshal record for local put", "error", err, "key", hashing.HexKadID(key))
 		return err
 	}
 

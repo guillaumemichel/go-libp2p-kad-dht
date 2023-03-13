@@ -13,6 +13,7 @@ import (
 	"github.com/multiformats/go-multihash"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 )
 
 var logger = logging.Logger("dht")
@@ -74,8 +75,8 @@ func (pm *ProtocolMessenger) PutValue(ctx context.Context, p peer.ID, rec *recpb
 
 // GetValue asks a peer for the value corresponding to the given key. Also returns the K closest peers to the key
 // as described in GetClosestPeers.
-func (pm *ProtocolMessenger) GetValue(ctx context.Context, p peer.ID, key string) (*recpb.Record, []*peer.AddrInfo, error) {
-	pmes := NewMessage(Message_GET_VALUE, []byte(key), 0)
+func (pm *ProtocolMessenger) GetValue(ctx context.Context, p peer.ID, key hashing.KadKey) (*recpb.Record, []*peer.AddrInfo, error) {
+	pmes := NewMessage(Message_GET_VALUE, key[:], 0)
 	respMsg, err := pm.m.SendRequest(ctx, p, pmes)
 	if err != nil {
 		return nil, nil, err
@@ -89,7 +90,7 @@ func (pm *ProtocolMessenger) GetValue(ctx context.Context, p peer.ID, key string
 		logger.Debug("got value")
 
 		// Check that record matches the one we are looking for (validation of the record does not happen here)
-		if !bytes.Equal([]byte(key), rec.GetKey()) {
+		if !bytes.Equal(key[:], rec.GetKey()) {
 			logger.Debug("received incorrect record")
 			return nil, nil, internal.ErrIncorrectRecord
 		}
@@ -100,11 +101,11 @@ func (pm *ProtocolMessenger) GetValue(ctx context.Context, p peer.ID, key string
 	return nil, peers, nil
 }
 
-// GetClosestPeers asks a peer to return the K (a DHT-wide parameter) DHT server peers closest in XOR space to the id
-// Note: If the peer happens to know another peer whose peerID exactly matches the given id it will return that peer
+// GetClosestPeers asks a peer to return the K (a DHT-wide parameter) DHT server peers closest in XOR space to the key
+// Note: If the peer happens to know another peer whose peerID exactly matches the given key it will return that peer
 // even if that peer is not a DHT server node.
-func (pm *ProtocolMessenger) GetClosestPeers(ctx context.Context, p peer.ID, id peer.ID) ([]*peer.AddrInfo, error) {
-	pmes := NewMessage(Message_FIND_NODE, []byte(id), 0)
+func (pm *ProtocolMessenger) GetClosestPeers(ctx context.Context, p peer.ID, key hashing.KadKey) ([]*peer.AddrInfo, error) {
+	pmes := NewMessage(Message_FIND_NODE, key[:], 0)
 	respMsg, err := pm.m.SendRequest(ctx, p, pmes)
 	if err != nil {
 		return nil, err

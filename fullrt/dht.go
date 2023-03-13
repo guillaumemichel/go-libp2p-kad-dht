@@ -33,6 +33,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/crawler"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	internalConfig "github.com/libp2p/go-libp2p-kad-dht/internal/config"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/net"
 	dht_pb "github.com/libp2p/go-libp2p-kad-dht/pb"
 	"github.com/libp2p/go-libp2p-kad-dht/providers"
@@ -690,11 +691,11 @@ type lookupWithFollowupResult struct {
 	peers []peer.ID // the top K not unreachable peers at the end of the query
 }
 
-func (dht *FullRT) getValues(ctx context.Context, key string, stopQuery chan struct{}) (<-chan RecvdVal, <-chan *lookupWithFollowupResult) {
+func (dht *FullRT) getValues(ctx context.Context, key hashing.KadKey, stopQuery chan struct{}) (<-chan RecvdVal, <-chan *lookupWithFollowupResult) {
 	valCh := make(chan RecvdVal, 1)
 	lookupResCh := make(chan *lookupWithFollowupResult, 1)
 
-	logger.Debugw("finding value", "key", internal.LoggableRecordKeyString(key))
+	logger.Debugw("finding value", "key", hashing.HexKadID()(key))
 
 	if rec, err := dht.getLocal(ctx, key); rec != nil && err == nil {
 		select {
@@ -1378,7 +1379,7 @@ func (dht *FullRT) FindPeer(ctx context.Context, id peer.ID) (_ peer.AddrInfo, e
 			ID:   p,
 		})
 
-		peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, id)
+		peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, hashing.PeerKadID(id))
 		if err != nil {
 			logger.Debugf("error getting closer peers: %s", err)
 			return err

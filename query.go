@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/routing"
 
 	"github.com/google/uuid"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	"github.com/libp2p/go-libp2p-kad-dht/qpeerset"
 	kb "github.com/libp2p/go-libp2p-kbucket"
 )
@@ -30,7 +31,7 @@ type query struct {
 	id uuid.UUID
 
 	// target key for the lookup
-	key string
+	key hashing.KadKey
 
 	// the query context.
 	ctx context.Context
@@ -76,7 +77,7 @@ type lookupWithFollowupResult struct {
 //
 // After the lookup is complete the query function is run (unless stopped) against all of the top K peers from the
 // lookup that have not already been successfully queried.
-func (dht *IpfsDHT) runLookupWithFollowup(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
+func (dht *IpfsDHT) runLookupWithFollowup(ctx context.Context, target hashing.KadKey, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// run the query
 	lookupRes, err := dht.runQuery(ctx, target, queryFn, stopFn)
 	if err != nil {
@@ -145,10 +146,10 @@ processFollowUp:
 	return lookupRes, nil
 }
 
-func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
+// TODOGUI: make sure no string is given as target
+func (dht *IpfsDHT) runQuery(ctx context.Context, target hashing.KadKey, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// pick the K closest peers to the key in our Routing table.
-	targetKadID := kb.ConvertKey(target)
-	seedPeers := dht.routingTable.NearestPeers(targetKadID, dht.bucketSize)
+	seedPeers := dht.routingTable.NearestPeers(target[:], dht.bucketSize)
 	if len(seedPeers) == 0 {
 		routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 			Type:  routing.QueryError,
@@ -157,6 +158,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		return nil, kb.ErrLookupFailure
 	}
 
+	// TODOGUI: change the query format
 	q := &query{
 		id:         uuid.New(),
 		key:        target,
@@ -177,7 +179,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		q.recordValuablePeers()
 	}
 
-	res := q.constructLookupResult(targetKadID)
+	res := q.constructLookupResult(target[:])
 	return res, nil
 }
 
@@ -435,7 +437,7 @@ func (q *query) queryPeer(ctx context.Context, ch chan<- *queryUpdate, p peer.ID
 		//
 		// add the next peer to the query if matches the query target even if it would otherwise fail the query filter
 		// TODO: this behavior is really specific to how FindPeer works and not GetClosestPeers or any other function
-		isTarget := string(next.ID) == q.key
+		isTarget := hashing.PeerKadID(next.ID) == q.key
 		if isTarget || q.dht.queryPeerFilter(q.dht, *next) {
 			q.dht.maybeAddAddrs(next.ID, next.Addrs, pstore.TempAddrTTL)
 			saw = append(saw, next.ID)

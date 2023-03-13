@@ -329,42 +329,6 @@ func TestSearchValue(t *testing.T) {
 	}
 }
 
-func TestGetPublicKey(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	d, wan, lan := setupTier(ctx, t)
-	defer d.Close()
-	defer wan.Close()
-	defer lan.Close()
-
-	time.Sleep(5 * time.Millisecond)
-
-	pk, err := d.GetPublicKey(ctx, wan.PeerID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, err := peer.IDFromPublicKey(pk)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if id != wan.PeerID() {
-		t.Fatal("incorrect PK")
-	}
-
-	pk, err = d.GetPublicKey(ctx, lan.PeerID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, err = peer.IDFromPublicKey(pk)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if id != lan.PeerID() {
-		t.Fatal("incorrect PK")
-	}
-}
-
 func TestFindPeer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

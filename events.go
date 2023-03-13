@@ -7,35 +7,21 @@ import (
 
 	"github.com/google/uuid"
 
-	kbucket "github.com/libp2p/go-libp2p-kbucket"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
-
-// KeyKadID contains the Kademlia key in string and binary form.
-type KeyKadID struct {
-	Key string
-	Kad kbucket.ID
-}
-
-// NewKeyKadID creates a KeyKadID from a string Kademlia ID.
-func NewKeyKadID(k string) *KeyKadID {
-	return &KeyKadID{
-		Key: k,
-		Kad: kbucket.ConvertKey(k),
-	}
-}
 
 // PeerKadID contains a libp2p Peer ID and a binary Kademlia ID.
 type PeerKadID struct {
 	Peer peer.ID
-	Kad  kbucket.ID
+	Kad  hashing.KadKey
 }
 
 // NewPeerKadID creates a PeerKadID from a libp2p Peer ID.
 func NewPeerKadID(p peer.ID) *PeerKadID {
 	return &PeerKadID{
 		Peer: p,
-		Kad:  kbucket.ConvertPeerID(p),
+		Kad:  hashing.PeerKadID(p),
 	}
 }
 
@@ -61,15 +47,15 @@ func OptPeerKadID(p peer.ID) *PeerKadID {
 func NewLookupEvent(
 	node peer.ID,
 	id uuid.UUID,
-	key string,
+	key hashing.KadKey,
 	request *LookupUpdateEvent,
 	response *LookupUpdateEvent,
 	terminate *LookupTerminateEvent,
 ) *LookupEvent {
 	return &LookupEvent{
-		Node:      NewPeerKadID(node),
+		Node:      hashing.PeerKadID(node),
 		ID:        id,
-		Key:       NewKeyKadID(key),
+		Key:       key,
 		Request:   request,
 		Response:  response,
 		Terminate: terminate,
@@ -80,11 +66,11 @@ func NewLookupEvent(
 // LookupEvent supports JSON marshalling because all of its fields do, recursively.
 type LookupEvent struct {
 	// Node is the ID of the node performing the lookup.
-	Node *PeerKadID
+	Node hashing.KadKey
 	// ID is a unique identifier for the lookup instance.
 	ID uuid.UUID
 	// Key is the Kademlia key used as a lookup target.
-	Key *KeyKadID
+	Key hashing.KadKey
 	// Request, if not nil, describes a state update event, associated with an outgoing query request.
 	Request *LookupUpdateEvent
 	// Response, if not nil, describes a state update event, associated with an outgoing query response.

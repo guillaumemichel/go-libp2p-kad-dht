@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -13,7 +14,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	logging "github.com/ipfs/go-log"
-	"github.com/multiformats/go-base32"
 )
 
 var logger = logging.Logger("dht/RtRefreshManager")
@@ -38,11 +38,11 @@ type RtRefreshManager struct {
 	dhtPeerId peer.ID
 	rt        *kbucket.RoutingTable
 
-	enableAutoRefresh   bool                                        // should run periodic refreshes ?
-	refreshKeyGenFnc    func(cpl uint) (string, error)              // generate the key for the query to refresh this cpl
-	refreshQueryFnc     func(ctx context.Context, key string) error // query to run for a refresh.
-	refreshPingFnc      func(ctx context.Context, p peer.ID) error  // request to check liveness of remote peer
-	refreshQueryTimeout time.Duration                               // timeout for one refresh query
+	enableAutoRefresh   bool                                                // should run periodic refreshes ?
+	refreshKeyGenFnc    func(cpl uint) (hashing.KadKey, error)              // generate the key for the query to refresh this cpl
+	refreshQueryFnc     func(ctx context.Context, key hashing.KadKey) error // query to run for a refresh.
+	refreshPingFnc      func(ctx context.Context, p peer.ID) error          // request to check liveness of remote peer
+	refreshQueryTimeout time.Duration                                       // timeout for one refresh query
 
 	// interval between two periodic refreshes.
 	// also, a cpl wont be refreshed if the time since it was last refreshed
@@ -56,8 +56,8 @@ type RtRefreshManager struct {
 }
 
 func NewRtRefreshManager(h host.Host, rt *kbucket.RoutingTable, autoRefresh bool,
-	refreshKeyGenFnc func(cpl uint) (string, error),
-	refreshQueryFnc func(ctx context.Context, key string) error,
+	refreshKeyGenFnc func(cpl uint) (hashing.KadKey, error),
+	refreshQueryFnc func(ctx context.Context, key hashing.KadKey) error,
 	refreshPingFnc func(ctx context.Context, p peer.ID) error,
 	refreshQueryTimeout time.Duration,
 	refreshInterval time.Duration,
@@ -289,7 +289,7 @@ func (r *RtRefreshManager) refreshCpl(cpl uint) error {
 	}
 
 	logger.Infof("starting refreshing cpl %d with key %s (routing table size was %d)",
-		cpl, loggableRawKeyString(key), r.rt.Size())
+		cpl, hashing.HexKadID(key), r.rt.Size())
 
 	if err := r.runRefreshDHTQuery(key); err != nil {
 		return fmt.Errorf("failed to refresh cpl=%d, err=%s", cpl, err)
@@ -300,13 +300,13 @@ func (r *RtRefreshManager) refreshCpl(cpl uint) error {
 }
 
 func (r *RtRefreshManager) queryForSelf() error {
-	if err := r.runRefreshDHTQuery(string(r.dhtPeerId)); err != nil {
+	if err := r.runRefreshDHTQuery(hashing.PeerKadID(r.dhtPeerId)); err != nil {
 		return fmt.Errorf("failed to query for self, err=%s", err)
 	}
 	return nil
 }
 
-func (r *RtRefreshManager) runRefreshDHTQuery(key string) error {
+func (r *RtRefreshManager) runRefreshDHTQuery(key hashing.KadKey) error {
 	queryCtx, cancel := context.WithTimeout(r.ctx, r.refreshQueryTimeout)
 	defer cancel()
 
@@ -317,18 +317,4 @@ func (r *RtRefreshManager) runRefreshDHTQuery(key string) error {
 	}
 
 	return err
-}
-
-type loggableRawKeyString string
-
-func (lk loggableRawKeyString) String() string {
-	k := string(lk)
-
-	if len(k) == 0 {
-		return k
-	}
-
-	encStr := base32.RawStdEncoding.EncodeToString([]byte(k))
-
-	return encStr
 }

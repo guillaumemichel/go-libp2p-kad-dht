@@ -3,6 +3,7 @@ package qpeerset
 import (
 	"testing"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/test"
 
@@ -13,7 +14,7 @@ import (
 
 func TestQPeerSet(t *testing.T) {
 	key := "test"
-	qp := NewQueryPeerset(key)
+	qp := NewQueryPeerset(hashing.PeerKadID(peer.ID(key)))
 
 	// -----------------Ordering between peers for the Test -----
 	// KEY < peer3 < peer1 < peer4 < peer2

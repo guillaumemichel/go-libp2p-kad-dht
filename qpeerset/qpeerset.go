@@ -4,8 +4,9 @@ import (
 	"math/big"
 	"sort"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
+	"github.com/libp2p/go-libp2p-xor/key"
 	"github.com/libp2p/go-libp2p/core/peer"
-	ks "github.com/whyrusleeping/go-keyspace"
 )
 
 // PeerState describes the state of a peer ID during the lifecycle of an individual lookup.
@@ -26,7 +27,7 @@ const (
 // The lookup state is a set of peers, each labeled with a peer state.
 type QueryPeerset struct {
 	// the key being searched for
-	key ks.Key
+	key hashing.KadKey
 
 	// all known peers
 	all []queryPeerState
@@ -59,9 +60,9 @@ func (sqp *sortedQueryPeerset) Less(i, j int) bool {
 
 // NewQueryPeerset creates a new empty set of peers.
 // key is the target key of the lookup that this peer set is for.
-func NewQueryPeerset(key string) *QueryPeerset {
+func NewQueryPeerset(key hashing.KadKey) *QueryPeerset {
 	return &QueryPeerset{
-		key:    ks.XORKeySpace.Key([]byte(key)),
+		key:    key,
 		all:    []queryPeerState{},
 		sorted: false,
 	}
@@ -77,7 +78,8 @@ func (qp *QueryPeerset) find(p peer.ID) int {
 }
 
 func (qp *QueryPeerset) distanceToKey(p peer.ID) *big.Int {
-	return ks.XORKeySpace.Key([]byte(p)).Distance(qp.key)
+	peerKadid := hashing.PeerKadID(p)
+	return key.DistInt(qp.key[:], peerKadid[:])
 }
 
 // TryAdd adds the peer p to the peer set.

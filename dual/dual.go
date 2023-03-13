@@ -13,7 +13,6 @@ import (
 	kb "github.com/libp2p/go-libp2p-kbucket"
 	"github.com/libp2p/go-libp2p-kbucket/peerdiversity"
 	helper "github.com/libp2p/go-libp2p-routing-helpers"
-	ci "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -39,7 +38,6 @@ var (
 	_ routing.ContentRouting = (*DHT)(nil)
 	_ routing.Routing        = (*DHT)(nil)
 	_ routing.PeerRouting    = (*DHT)(nil)
-	_ routing.PubKeyFetcher  = (*DHT)(nil)
 	_ routing.ValueStore     = (*DHT)(nil)
 )
 
@@ -345,10 +343,4 @@ func (d *DHT) GetValue(ctx context.Context, key string, opts ...routing.Option) 
 func (dht *DHT) SearchValue(ctx context.Context, key string, opts ...routing.Option) (<-chan []byte, error) {
 	p := helper.Parallel{Routers: []routing.Routing{dht.WAN, dht.LAN}, Validator: dht.WAN.Validator}
 	return p.SearchValue(ctx, key, opts...)
-}
-
-// GetPublicKey returns the public key for the given peer.
-func (dht *DHT) GetPublicKey(ctx context.Context, pid peer.ID) (ci.PubKey, error) {
-	p := helper.Parallel{Routers: []routing.Routing{dht.WAN, dht.LAN}, Validator: dht.WAN.Validator}
-	return p.GetPublicKey(ctx, pid)
 }
