@@ -81,8 +81,6 @@ type IpfsDHT struct {
 	selfKey   kb.ID
 	peerstore peerstore.Peerstore // Peer Registry
 
-	datastore *ps.ProviderStore // Datastore for provider records
-
 	routingTable *kb.RoutingTable // Array of routing tables for differently distanced nodes
 	// providerStore stores & manages the provider records for this Dht peer.
 	providerStore *ps.ProviderStore
@@ -278,7 +276,6 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 	serverProtocols = []protocol.ID{v1proto}
 
 	dht := &IpfsDHT{
-		datastore:              ps.NewProviderStore(),
 		self:                   h.ID(),
 		selfKey:                kb.ConvertPeerID(h.ID()),
 		peerstore:              h.Peerstore(),
@@ -557,7 +554,7 @@ func (dht *IpfsDHT) persistRTPeersInPeerStore() {
 func (dht *IpfsDHT) getLocal(ctx context.Context, key hashing.KadKey) (*recpb.Record, error) {
 	logger.Debugw("finding value in datastore", "key", hashing.HexKadID(key))
 
-	rec, _ := dht.datastore.GetProviders(key)
+	rec, _ := dht.providerStore.GetProviders(key)
 
 	// CRAP
 	recpb := &recpb.Record{}
