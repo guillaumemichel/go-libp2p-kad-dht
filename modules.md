@@ -12,7 +12,7 @@ flowchart TD
     P --> PS
     P --> R
     K --> R["<font size=5><b>Routing</b></font><br>FindClosestPeers()<br>GetValue()<br>FindPeer()"]
-    H["<font size=5><b>Handler</b></font><br>Put()<br>Get()<br>GetClosestPeers()"] --> PS
+    H["<font size=5><b>Handler</b></font><br>Put()<br>Get()<br>FindClosestPeers()"] --> PS
     R -.->|over network| H
     H --> R
     H --> RT["<font size=5><b>Routing Table</b></font><br>LocalClosestPeers()"]
@@ -39,9 +39,10 @@ I.e `fullrt` only has a different `Routing Table` implementation (allowing to by
 
 `Routing` is a large module, responsible for finding remote peers or values in the network. It needs `Routing Table` to keep track about the identity and multiaddresses of remote peers. `Routing` performs the iterative DHT query process.
 
+### Handler
+
+`Handler` is responsible for handling incoming requests. For `Put` and `Get` requests it must write to and read from the `Provider Store`. For `FindClosestPeers` requests, it needs the `Routing Table`'s `LocalClosestPeers` function. Actions in `Handler` are usually triggered by the `Routing` modules from another peer across the network.
+
 ## DHT Interface
 
 For now, the only required interface is a `StartProvide`, `StopProvide`, `ProvideList`, `FindProvs`, `FindPeer`. For IPNS, a `GetValue` will be required.
-
-The only 
-
