@@ -7,7 +7,7 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	dssync "github.com/ipfs/go-datastore/sync"
 	"github.com/ipfs/go-ipns"
-	"github.com/libp2p/go-libp2p-kad-dht/providers"
+	"github.com/libp2p/go-libp2p-kad-dht/provider"
 	"github.com/libp2p/go-libp2p-kbucket/peerdiversity"
 	record "github.com/libp2p/go-libp2p-record"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -44,7 +44,7 @@ type Config struct {
 	MaxRecordAge       time.Duration
 	EnableProviders    bool
 	EnableValues       bool
-	ProviderStore      providers.ProviderStore
+	ProviderStore      provider.ProviderStore
 	QueryPeerFilter    QueryFilterFunc
 
 	RoutingTable struct {
@@ -114,7 +114,7 @@ var Defaults = func(o *Config) error {
 	o.RoutingTable.RefreshInterval = 10 * time.Minute
 	o.RoutingTable.AutoRefresh = true
 	o.RoutingTable.PeerFilter = EmptyRTFilter
-	o.MaxRecordAge = providers.ProvideValidity
+	o.MaxRecordAge = provider.ProvideValidity
 
 	o.BucketSize = defaultBucketSize
 	o.Concurrency = 10

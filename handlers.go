@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
+	ps "github.com/libp2p/go-libp2p-kad-dht/providerstore"
 	recpb "github.com/libp2p/go-libp2p-record/pb"
 	"github.com/multiformats/go-base32"
 )
@@ -202,7 +203,14 @@ func (dht *IpfsDHT) handlePutValue(ctx context.Context, p peer.ID, pmes *pb.Mess
 		return nil, err
 	}
 
-	err = dht.datastore.AddProvider(hashing.KadKey(pmes.GetKey()), data)
+	dummyRecord := ps.ProviderRecord{
+		ServerKey: hashing.KadKey(pmes.GetKey()),
+		Provider:  p,
+		EncPeerID: data,
+		Timestamp: uint32(time.Now().Minute()),
+		Signature: data,
+	}
+	err = dht.datastore.AddProvider(hashing.KadKey(pmes.GetKey()), dummyRecord)
 	return pmes, err
 }
 
@@ -306,11 +314,13 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	resp := pb.NewMessage(pmes.GetType(), pmes.GetKey(), pmes.GetClusterLevel())
 
 	// setup providers
-	providers, err := dht.providerStore.GetProviders(ctx, key)
+	_, err := dht.providerStore.GetProviders(hashing.KadKey(key))
 	if err != nil {
 		return nil, err
 	}
-	resp.ProviderPeers = pb.PeerInfosToPBPeers(dht.host.Network(), providers)
+	dummyProviders := make([]peer.AddrInfo, len(dht.bootstrapPeers()))
+	copy(dummyProviders, dht.bootstrapPeers())
+	resp.ProviderPeers = pb.PeerInfosToPBPeers(dht.host.Network(), dummyProviders)
 
 	// Also send closer peers.
 	closer := dht.betterPeersToQuery(pmes, p, dht.bucketSize)
@@ -347,8 +357,15 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			logger.Debugw("no valid addresses for provider", "from", p)
 			continue
 		}
+		dummyRecord := ps.ProviderRecord{
+			ServerKey: hashing.KadKey(pmes.GetKey()),
+			Provider:  p,
+			EncPeerID: pmes.Record.Value,
+			Timestamp: uint32(time.Now().Minute()),
+			Signature: pmes.Record.Value,
+		}
 
-		dht.providerStore.AddProvider(ctx, key, peer.AddrInfo{ID: p})
+		dht.providerStore.AddProvider(hashing.KadKey(key), dummyRecord)
 	}
 
 	return nil, nil

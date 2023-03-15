@@ -8,34 +8,40 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+// The ProviderStore is a temporary structure. It isn't optimized and will be replaced by a proper datastore.
+
 type ProviderStore struct {
 	// HASH2 -> ServerKey -> Content Provider peer.ID -> [EncPeerID, TS, Signature]
 	// TODO: link to Provider Store spec
+	// TODO: replace with better data structure
 	store map[hashing.KadKey]map[hashing.KadKey]map[peer.ID][]byte
 	lock  sync.RWMutex
+
+	cache map[hashing.KadKey]ProviderRecord // lru cache
 }
 
 func NewProviderStore() *ProviderStore {
 	return &ProviderStore{
-		//store: make(map[hashing.KadKey]map[hashing.KadKey]map[peer.ID][]byte),
+		store: make(map[hashing.KadKey]map[hashing.KadKey]map[peer.ID][]byte),
+		cache: make(map[hashing.KadKey]ProviderRecord),
 	}
 }
 
-func (ps *ProviderStore) AddProvider(k hashing.KadKey, val []byte) error {
+func (ps *ProviderStore) AddProvider(key hashing.KadKey, record ProviderRecord) error {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
-	_, ok := ps.store[k]
+	_, ok := ps.store[key]
 	if !ok {
-		ps.store[k] = make(map[hashing.KadKey]map[peer.ID][]byte)
+		ps.store[key] = make(map[hashing.KadKey]map[peer.ID][]byte)
 	}
 
-	_, ok = ps.store[k][k]
+	_, ok = ps.store[key][record.ServerKey]
 	if !ok {
-		ps.store[k][k] = make(map[peer.ID][]byte)
+		ps.store[key][record.ServerKey] = make(map[peer.ID][]byte)
 	}
-
-	ps.store[k][k]["peerID"] = val
+	// TODO: add signature and timestamp
+	ps.store[key][record.ServerKey][record.Provider] = record.EncPeerID
 	return nil
 }
 

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	dhtcfg "github.com/libp2p/go-libp2p-kad-dht/internal/config"
-	"github.com/libp2p/go-libp2p-kad-dht/providers"
+	"github.com/libp2p/go-libp2p-kad-dht/provider"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 
@@ -37,7 +37,7 @@ const DefaultPrefix protocol.ID = "/ipfs"
 type Option = dhtcfg.Option
 
 // ProviderStore sets the provider storage manager.
-func ProviderStore(ps providers.ProviderStore) Option {
+func ProviderStore(ps provider.ProviderStore) Option {
 	return func(c *dhtcfg.Config) error {
 		c.ProviderStore = ps
 		return nil

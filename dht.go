@@ -20,7 +20,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal/net"
 	"github.com/libp2p/go-libp2p-kad-dht/metrics"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
-	"github.com/libp2p/go-libp2p-kad-dht/providers"
 	ps "github.com/libp2p/go-libp2p-kad-dht/providerstore"
 	"github.com/libp2p/go-libp2p-kad-dht/rtrefresh"
 	kb "github.com/libp2p/go-libp2p-kbucket"
@@ -86,7 +85,7 @@ type IpfsDHT struct {
 
 	routingTable *kb.RoutingTable // Array of routing tables for differently distanced nodes
 	// providerStore stores & manages the provider records for this Dht peer.
-	providerStore providers.ProviderStore
+	providerStore *ps.ProviderStore
 
 	// manages Routing Table refresh
 	rtRefreshManager *rtrefresh.RtRefreshManager
@@ -220,9 +219,11 @@ func New(ctx context.Context, h host.Host, options ...Option) (*IpfsDHT, error) 
 	}
 	dht.proc.Go(sn.subscribe)
 	// handle providers
-	if mgr, ok := dht.providerStore.(interface{ Process() goprocess.Process }); ok {
-		dht.proc.AddChild(mgr.Process())
-	}
+	/*
+		if mgr, ok := dht.providerStore.(interface{ Process() goprocess.Process }); ok {
+			dht.proc.AddChild(mgr.Process())
+		}
+	*/
 
 	// go-routine to make sure we ALWAYS have RT peer addresses in the peerstore
 	// since RT membership is decoupled from connectivity
@@ -339,9 +340,9 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 	dht.ctx = goprocessctx.WithProcessClosing(ctxTags, dht.proc)
 
 	if cfg.ProviderStore != nil {
-		dht.providerStore = cfg.ProviderStore
+		dht.providerStore = ps.NewProviderStore()
 	} else {
-		dht.providerStore, err = providers.NewProviderManager(dht.ctx, h.ID(), dht.peerstore, cfg.Datastore)
+		dht.providerStore = ps.NewProviderStore() // provider.NewProviderManager(dht.ctx, h.ID(), dht.peerstore, cfg.Datastore)
 		if err != nil {
 			return nil, fmt.Errorf("initializing default provider manager (%v)", err)
 		}
@@ -423,7 +424,7 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 }
 
 // ProviderStore returns the provider storage object for storing and retrieving provider records.
-func (dht *IpfsDHT) ProviderStore() providers.ProviderStore {
+func (dht *IpfsDHT) ProviderStore() *ps.ProviderStore {
 	return dht.providerStore
 }
 
@@ -573,7 +574,15 @@ func (dht *IpfsDHT) putLocal(ctx context.Context, key hashing.KadKey, rec *recpb
 		return err
 	}
 
-	if err := dht.datastore.AddProvider(key, data); err != nil {
+	// dummy record
+	record := ps.ProviderRecord{
+		ServerKey: hashing.PeerKadID(dht.self),
+		Provider:  dht.self,
+		EncPeerID: data,
+		Timestamp: uint32(time.Now().Minute()),
+		Signature: data,
+	}
+	if err := dht.datastore.AddProvider(key, record); err != nil {
 		logger.Warnw("failed to put value for local put", "error", err, "key", hashing.HexKadID(key))
 		return err
 	}
