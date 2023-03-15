@@ -14,6 +14,7 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	u "github.com/ipfs/go-ipfs-util"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hashing"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
 	recpb "github.com/libp2p/go-libp2p-record/pb"
 	"github.com/multiformats/go-base32"
@@ -91,24 +92,14 @@ func (dht *IpfsDHT) handleGetValue(ctx context.Context, p peer.ID, pmes *pb.Mess
 
 func (dht *IpfsDHT) checkLocalDatastore(ctx context.Context, k []byte) (*recpb.Record, error) {
 	logger.Debugf("%s handleGetValue looking into ds", dht.self)
-	dskey := convertToDsKey(k)
-	buf, err := dht.datastore.Get(ctx, dskey)
+	buf, _ := dht.datastore.GetProviders(hashing.KadKey(k))
 	logger.Debugf("%s handleGetValue looking into ds GOT %v", dht.self, buf)
-
-	if err == ds.ErrNotFound {
-		return nil, nil
-	}
-
-	// if we got an unexpected error, bail.
-	if err != nil {
-		return nil, err
-	}
 
 	// if we have the value, send it back
 	logger.Debugf("%s handleGetValue success!", dht.self)
 
 	rec := new(recpb.Record)
-	err = proto.Unmarshal(buf, rec)
+	err := proto.Unmarshal(buf, rec)
 	if err != nil {
 		logger.Debug("failed to unmarshal DHT record from datastore")
 		return nil, err
@@ -131,7 +122,7 @@ func (dht *IpfsDHT) checkLocalDatastore(ctx context.Context, k []byte) (*recpb.R
 	// may be computationally expensive
 
 	if recordIsBad {
-		err := dht.datastore.Delete(ctx, dskey)
+		err := dht.datastore.RemoveProvider(hashing.KadKey(k))
 		if err != nil {
 			logger.Error("Failed to delete bad record from datastore: ", err)
 		}
@@ -171,8 +162,6 @@ func (dht *IpfsDHT) handlePutValue(ctx context.Context, p peer.ID, pmes *pb.Mess
 		return nil, err
 	}
 
-	dskey := convertToDsKey(rec.GetKey())
-
 	// fetch the striped lock for this key
 	var indexForLock byte
 	if len(rec.GetKey()) == 0 {
@@ -187,7 +176,7 @@ func (dht *IpfsDHT) handlePutValue(ctx context.Context, p peer.ID, pmes *pb.Mess
 	// Make sure the new record is "better" than the record we have locally.
 	// This prevents a record with for example a lower sequence number from
 	// overwriting a record with a higher sequence number.
-	existing, err := dht.getRecordFromDatastore(ctx, dskey)
+	existing, err := dht.getRecordFromDatastore(ctx, hashing.KadKey(pmes.GetKey()))
 	if err != nil {
 		return nil, err
 	}
@@ -213,26 +202,26 @@ func (dht *IpfsDHT) handlePutValue(ctx context.Context, p peer.ID, pmes *pb.Mess
 		return nil, err
 	}
 
-	err = dht.datastore.Put(ctx, dskey, data)
+	err = dht.datastore.AddProvider(hashing.KadKey(pmes.GetKey()), data)
 	return pmes, err
 }
 
 // returns nil, nil when either nothing is found or the value found doesn't properly validate.
 // returns nil, some_error when there's a *datastore* error (i.e., something goes very wrong)
-func (dht *IpfsDHT) getRecordFromDatastore(ctx context.Context, dskey ds.Key) (*recpb.Record, error) {
-	buf, err := dht.datastore.Get(ctx, dskey)
+func (dht *IpfsDHT) getRecordFromDatastore(ctx context.Context, key hashing.KadKey) (*recpb.Record, error) {
+	buf, err := dht.datastore.GetProviders(key)
 	if err == ds.ErrNotFound {
 		return nil, nil
 	}
 	if err != nil {
-		logger.Errorw("error retrieving record from datastore", "key", dskey, "error", err)
+		logger.Errorw("error retrieving record from datastore", "key", hashing.HexKadID(key), "error", err)
 		return nil, err
 	}
 	rec := new(recpb.Record)
 	err = proto.Unmarshal(buf, rec)
 	if err != nil {
 		// Bad data in datastore, log it but don't return an error, we'll just overwrite it
-		logger.Errorw("failed to unmarshal record from datastore", "key", dskey, "error", err)
+		logger.Errorw("failed to unmarshal record from datastore", "key", hashing.HexKadID(key), "error", err)
 		return nil, nil
 	}
 

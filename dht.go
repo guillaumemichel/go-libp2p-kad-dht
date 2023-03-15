@@ -21,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/metrics"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
 	"github.com/libp2p/go-libp2p-kad-dht/providers"
+	ps "github.com/libp2p/go-libp2p-kad-dht/providerstore"
 	"github.com/libp2p/go-libp2p-kad-dht/rtrefresh"
 	kb "github.com/libp2p/go-libp2p-kbucket"
 	"github.com/libp2p/go-libp2p-kbucket/peerdiversity"
@@ -81,7 +82,7 @@ type IpfsDHT struct {
 	selfKey   kb.ID
 	peerstore peerstore.Peerstore // Peer Registry
 
-	datastore ds.Datastore // Local data
+	datastore *ps.ProviderStore // Datastore for provider records
 
 	routingTable *kb.RoutingTable // Array of routing tables for differently distanced nodes
 	// providerStore stores & manages the provider records for this Dht peer.
@@ -153,9 +154,9 @@ type IpfsDHT struct {
 // guarantee, but we can use them to aid refactoring.
 var (
 	_ routing.ContentRouting = (*IpfsDHT)(nil)
-	_ routing.Routing        = (*IpfsDHT)(nil)
-	_ routing.PeerRouting    = (*IpfsDHT)(nil)
-	_ routing.ValueStore     = (*IpfsDHT)(nil)
+	//_ routing.Routing        = (*IpfsDHT)(nil)
+	_ routing.PeerRouting = (*IpfsDHT)(nil)
+	//_ routing.ValueStore     = (*IpfsDHT)(nil)
 )
 
 // New creates a new DHT with the specified host and options.
@@ -276,7 +277,7 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 	serverProtocols = []protocol.ID{v1proto}
 
 	dht := &IpfsDHT{
-		datastore:              cfg.Datastore,
+		datastore:              ps.NewProviderStore(),
 		self:                   h.ID(),
 		selfKey:                kb.ConvertPeerID(h.ID()),
 		peerstore:              h.Peerstore(),
@@ -555,19 +556,13 @@ func (dht *IpfsDHT) persistRTPeersInPeerStore() {
 func (dht *IpfsDHT) getLocal(ctx context.Context, key hashing.KadKey) (*recpb.Record, error) {
 	logger.Debugw("finding value in datastore", "key", hashing.HexKadID(key))
 
-	rec, err := dht.getRecordFromDatastore(ctx, mkDsKey(key))
-	if err != nil {
-		logger.Warnw("get local failed", "key", hashing.HexKadID(key), "error", err)
-		return nil, err
-	}
+	rec, _ := dht.datastore.GetProviders(key)
 
-	// Double check the key. Can't hurt.
-	if rec != nil && string(rec.GetKey()) != key {
-		logger.Errorw("BUG: found a DHT record that didn't match it's key", "expected", hashing.HexKadID(key), "got", rec.GetKey())
-		return nil, nil
+	// CRAP
+	recpb := &recpb.Record{}
+	recpb.Unmarshal(rec)
 
-	}
-	return rec, nil
+	return recpb, nil
 }
 
 // putLocal stores the key value pair in the datastore
@@ -578,7 +573,12 @@ func (dht *IpfsDHT) putLocal(ctx context.Context, key hashing.KadKey, rec *recpb
 		return err
 	}
 
-	return dht.datastore.Put(ctx, mkDsKey(key), data)
+	if err := dht.datastore.AddProvider(key, data); err != nil {
+		logger.Warnw("failed to put value for local put", "error", err, "key", hashing.HexKadID(key))
+		return err
+	}
+
+	return nil
 }
 
 func (dht *IpfsDHT) rtPeerLoop(proc goprocess.Process) {

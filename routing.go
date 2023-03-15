@@ -1,7 +1,6 @@
 package dht
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -36,30 +35,15 @@ func (dht *IpfsDHT) PutValue(ctx context.Context, key hashing.KadKey, value []by
 
 	logger.Debugw("putting value", "key", hashing.HexKadID(key))
 
-	// don't even allow local users to put bad values.
-	if err := dht.Validator.Validate(key, value); err != nil {
-		return err
-	}
-
 	old, err := dht.getLocal(ctx, key)
 	if err != nil {
 		// Means something is wrong with the datastore.
 		return err
 	}
 
-	// Check if we have an old value that's not the same as the new one.
-	if old != nil && !bytes.Equal(old.GetValue(), value) {
-		// Check to see if the new one is better.
-		i, err := dht.Validator.Select(key, [][]byte{value, old.GetValue()})
-		if err != nil {
-			return err
-		}
-		if i != 0 {
-			return fmt.Errorf("can't replace a newer value with an older value")
-		}
-	}
+	_ = old
 
-	rec := record.MakePutRecord(key, value)
+	rec := record.MakePutRecord(string(key[:]), value)
 	rec.TimeReceived = u.FormatRFC3339(time.Now())
 	err = dht.putLocal(ctx, key, rec)
 	if err != nil {
@@ -219,23 +203,25 @@ loop:
 				break loop
 			}
 
-			// Select best value
-			if best != nil {
-				if bytes.Equal(best, v.Val) {
-					peersWithBest[v.From] = struct{}{}
-					aborted = newVal(ctx, v, false)
-					continue
+			/*
+				// Select best value
+				if best != nil {
+					if bytes.Equal(best, v.Val) {
+						peersWithBest[v.From] = struct{}{}
+						aborted = newVal(ctx, v, false)
+						continue
+					}
+					sel, err := dht.Validator.Select(key, [][]byte{best, v.Val})
+					if err != nil {
+						logger.Warnw("failed to select best value", "key", hashing.HexKadID(key), "error", err)
+						continue
+					}
+					if sel != 1 {
+						aborted = newVal(ctx, v, false)
+						continue
+					}
 				}
-				sel, err := dht.Validator.Select(key, [][]byte{best, v.Val})
-				if err != nil {
-					logger.Warnw("failed to select best value", "key", hashing.HexKadID(key), "error", err)
-					continue
-				}
-				if sel != 1 {
-					aborted = newVal(ctx, v, false)
-					continue
-				}
-			}
+			*/
 			peersWithBest = make(map[peer.ID]struct{})
 			peersWithBest[v.From] = struct{}{}
 			best = v.Val
@@ -249,7 +235,7 @@ loop:
 }
 
 func (dht *IpfsDHT) updatePeerValues(ctx context.Context, key hashing.KadKey, val []byte, peers []peer.ID) {
-	fixupRec := record.MakePutRecord(key, val)
+	fixupRec := record.MakePutRecord(string(key[:]), val)
 	for _, p := range peers {
 		go func(p peer.ID) {
 			// TODO: Is this possible?
@@ -316,11 +302,6 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key hashing.KadKey, stopQuery
 				val := rec.GetValue()
 				if val == nil {
 					logger.Debug("received a nil record value")
-					return peers, nil
-				}
-				if err := dht.Validator.Validate(key, val); err != nil {
-					// make sure record is valid
-					logger.Debugw("received invalid record (discarded)", "error", err)
 					return peers, nil
 				}
 
