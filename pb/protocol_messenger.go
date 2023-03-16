@@ -12,7 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
 
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
 )
 
 var logger = logging.Logger("dht")
@@ -59,7 +59,7 @@ func (pm *ProtocolMessenger) PutValue(ctx context.Context, p peer.ID, rec *recpb
 	pmes.Record = rec
 	rpmes, err := pm.m.SendRequest(ctx, p, pmes)
 	if err != nil {
-		logger.Debugw("failed to put value to peer", "to", p, "key", internal.LoggableRecordKeyBytes(rec.Key), "error", err)
+		logger.Debugw("failed to put value to peer", "to", p, "key", hash.HexKadID(hash.KadKey(rec.Key)), "error", err)
 		return err
 	}
 
@@ -91,7 +91,7 @@ func (pm *ProtocolMessenger) GetValue(ctx context.Context, p peer.ID, key string
 		// Check that record matches the one we are looking for (validation of the record does not happen here)
 		if !bytes.Equal([]byte(key), rec.GetKey()) {
 			logger.Debug("received incorrect record")
-			return nil, nil, internal.ErrIncorrectRecord
+			return nil, nil, errors.New("received incorrect record")
 		}
 
 		return rec, peers, err
