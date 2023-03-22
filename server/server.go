@@ -103,7 +103,7 @@ func (dht *DhtServer) handleFindPeer(s network.Stream, dhtMsg *pb.DhtFindPeerReq
 	}
 	fmt.Println("got a find peer request for", hex.EncodeToString(kadid))
 
-	peers := dht.rt.NearestPeers(hash.KadKey(kadid), rt.BUCKET_SIZE)
+	peers := dht.rt.NearestPeers(hash.KadKey(kadid), dht.rt.BucketSize())
 	resp := pb.DhtFindPeerResponse{}
 	resp.Peers = make([]*pb.Peer, len(peers))
 	for i, p := range peers {
