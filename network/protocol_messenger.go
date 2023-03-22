@@ -5,25 +5,23 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
+	sync "sync"
 	"time"
+
+	logging "github.com/ipfs/go-log"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/metrics"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/utils"
+	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-
-	logging "github.com/ipfs/go-log"
 	"github.com/libp2p/go-msgio"
-
-	//lint:ignore SA1019 TODO migrate away from gogo pb
 	"github.com/libp2p/go-msgio/protoio"
-
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
-
-	"github.com/libp2p/go-libp2p-kad-dht/internal/metrics"
-	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
 )
 
 var dhtReadMessageTimeout = 10 * time.Second
@@ -32,6 +30,42 @@ var dhtReadMessageTimeout = 10 * time.Second
 var ErrReadTimeout = fmt.Errorf("timed out reading response")
 
 var logger = logging.Logger("dht")
+
+// ProtocolMessenger can be used for sending DHT messages to peers and processing their responses.
+// This decouples the wire protocol format from both the DHT protocol implementation and from the implementation of the
+// routing.Routing interface.
+//
+// Note: the ProtocolMessenger's MessageSender still needs to deal with some wire protocol details such as using
+// varint-delineated protobufs
+type ProtocolMessenger struct {
+	m MessageSender
+}
+
+type ProtocolMessengerOption func(*ProtocolMessenger) error
+
+// NewProtocolMessenger creates a new ProtocolMessenger that is used for sending DHT messages to peers and processing
+// their responses.
+func NewProtocolMessenger(msgSender MessageSender, opts ...ProtocolMessengerOption) (*ProtocolMessenger, error) {
+	pm := &ProtocolMessenger{
+		m: msgSender,
+	}
+
+	for _, o := range opts {
+		if err := o(pm); err != nil {
+			return nil, err
+		}
+	}
+
+	return pm, nil
+}
+
+// MessageSender handles sending wire protocol messages to a given peer
+type MessageSender interface {
+	// SendRequest sends a peer a message and waits for its response
+	SendRequest(ctx context.Context, p peer.ID, pmes *pb.DhtMessage) (*pb.DhtMessage, error)
+	// SendMessage sends a peer a message without waiting on a response
+	SendMessage(ctx context.Context, p peer.ID, pmes *pb.DhtMessage) error
+}
 
 // messageSenderImpl is responsible for sending requests and messages to peers efficiently, including reuse of streams.
 // It also tracks metrics for sent requests and messages.
@@ -42,7 +76,7 @@ type messageSenderImpl struct {
 	protocols []protocol.ID
 }
 
-func NewMessageSenderImpl(h host.Host, protos []protocol.ID) pb.MessageSender {
+func NewMessageSenderImpl(h host.Host, protos []protocol.ID) MessageSender {
 	return &messageSenderImpl{
 		host:      h,
 		strmap:    make(map[peer.ID]*peerMessageSender),
@@ -71,7 +105,7 @@ func (m *messageSenderImpl) OnDisconnect(ctx context.Context, p peer.ID) {
 
 // SendRequest sends out a request, but also makes sure to
 // measure the RTT for latency measurements.
-func (m *messageSenderImpl) SendRequest(ctx context.Context, p peer.ID, pmes *pb.Message) (*pb.Message, error) {
+func (m *messageSenderImpl) SendRequest(ctx context.Context, p peer.ID, pmes *pb.DhtMessage) (*pb.DhtMessage, error) {
 	ctx, _ = tag.New(ctx, metrics.UpsertMessageType(pmes))
 
 	ms, err := m.messageSenderForPeer(ctx, p)
@@ -98,7 +132,7 @@ func (m *messageSenderImpl) SendRequest(ctx context.Context, p peer.ID, pmes *pb
 
 	stats.Record(ctx,
 		metrics.SentRequests.M(1),
-		metrics.SentBytes.M(int64(pmes.Size())),
+		//metrics.SentBytes.M(int64(pmes.Size())),
 		metrics.OutboundRequestLatency.M(float64(time.Since(start))/float64(time.Millisecond)),
 	)
 	m.host.Peerstore().RecordLatency(p, time.Since(start))
@@ -106,7 +140,7 @@ func (m *messageSenderImpl) SendRequest(ctx context.Context, p peer.ID, pmes *pb
 }
 
 // SendMessage sends out a message
-func (m *messageSenderImpl) SendMessage(ctx context.Context, p peer.ID, pmes *pb.Message) error {
+func (m *messageSenderImpl) SendMessage(ctx context.Context, p peer.ID, pmes *pb.DhtMessage) error {
 	ctx, _ = tag.New(ctx, metrics.UpsertMessageType(pmes))
 
 	ms, err := m.messageSenderForPeer(ctx, p)
@@ -130,7 +164,7 @@ func (m *messageSenderImpl) SendMessage(ctx context.Context, p peer.ID, pmes *pb
 
 	stats.Record(ctx,
 		metrics.SentMessages.M(1),
-		metrics.SentBytes.M(int64(pmes.Size())),
+		//metrics.SentBytes.M(int64(pmes.Size())),
 	)
 	return nil
 }
@@ -142,7 +176,7 @@ func (m *messageSenderImpl) messageSenderForPeer(ctx context.Context, p peer.ID)
 		m.smlk.Unlock()
 		return ms, nil
 	}
-	ms = &peerMessageSender{p: p, m: m, lk: NewCtxMutex()}
+	ms = &peerMessageSender{p: p, m: m, lk: utils.NewCtxMutex()}
 	m.strmap[p] = ms
 	m.smlk.Unlock()
 
@@ -171,7 +205,7 @@ func (m *messageSenderImpl) messageSenderForPeer(ctx context.Context, p peer.ID)
 type peerMessageSender struct {
 	s  network.Stream
 	r  msgio.ReadCloser
-	lk CtxMutex
+	lk utils.CtxMutex
 	p  peer.ID
 	m  *messageSenderImpl
 
@@ -230,7 +264,7 @@ func (ms *peerMessageSender) prep(ctx context.Context) error {
 // behaviour.
 const streamReuseTries = 3
 
-func (ms *peerMessageSender) SendMessage(ctx context.Context, pmes *pb.Message) error {
+func (ms *peerMessageSender) SendMessage(ctx context.Context, pmes *pb.DhtMessage) error {
 	if err := ms.lk.Lock(ctx); err != nil {
 		return err
 	}
@@ -267,7 +301,7 @@ func (ms *peerMessageSender) SendMessage(ctx context.Context, pmes *pb.Message) 
 	}
 }
 
-func (ms *peerMessageSender) SendRequest(ctx context.Context, pmes *pb.Message) (*pb.Message, error) {
+func (ms *peerMessageSender) SendRequest(ctx context.Context, pmes *pb.DhtMessage) (*pb.DhtMessage, error) {
 	if err := ms.lk.Lock(ctx); err != nil {
 		return nil, err
 	}
@@ -292,7 +326,7 @@ func (ms *peerMessageSender) SendRequest(ctx context.Context, pmes *pb.Message) 
 			continue
 		}
 
-		mes := new(pb.Message)
+		mes := new(pb.DhtMessage)
 		if err := ms.ctxReadMsg(ctx, mes); err != nil {
 			_ = ms.s.Reset()
 			ms.s = nil
@@ -318,11 +352,11 @@ func (ms *peerMessageSender) SendRequest(ctx context.Context, pmes *pb.Message) 
 	}
 }
 
-func (ms *peerMessageSender) writeMsg(pmes *pb.Message) error {
+func (ms *peerMessageSender) writeMsg(pmes *pb.DhtMessage) error {
 	return WriteMsg(ms.s, pmes)
 }
 
-func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.Message) error {
+func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.DhtMessage) error {
 	errc := make(chan error, 1)
 	go func(r msgio.ReadCloser) {
 		defer close(errc)
@@ -332,7 +366,7 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.Message) er
 			errc <- err
 			return
 		}
-		errc <- mes.Unmarshal(bytes)
+		errc <- proto.Unmarshal(bytes, mes)
 	}(ms.r)
 
 	t := time.NewTimer(dhtReadMessageTimeout)
@@ -348,12 +382,9 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.Message) er
 	}
 }
 
-// The Protobuf writer performs multiple small writes when writing a message.
-// We need to buffer those writes, to make sure that we're not sending a new
-// packet for every single write.
 type bufferedDelimitedWriter struct {
 	*bufio.Writer
-	protoio.WriteCloser
+	msgio.WriteCloser
 }
 
 var writerPool = sync.Pool{
@@ -361,20 +392,29 @@ var writerPool = sync.Pool{
 		w := bufio.NewWriter(nil)
 		return &bufferedDelimitedWriter{
 			Writer:      w,
-			WriteCloser: protoio.NewDelimitedWriter(w),
+			WriteCloser: msgio.NewWriter(w),
+			//WriteCloser: protoio.NewDelimitedWriter(w),
 		}
 	},
 }
 
-func WriteMsg(w io.Writer, mes *pb.Message) error {
+func WriteMsg(w io.Writer, mes *pb.DhtMessage) error {
+	msg, err := proto.Marshal(mes)
+	if err != nil {
+		return err
+	}
+
 	bw := writerPool.Get().(*bufferedDelimitedWriter)
 	bw.Reset(w)
-	err := bw.WriteMsg(mes)
+
+	err = bw.WriteMsg(msg)
+	//err := bw.WriteMsg(mes)
 	if err == nil {
 		err = bw.Flush()
 	}
 	bw.Reset(nil)
 	writerPool.Put(bw)
+	fmt.Println("wrote message", len(msg), msg)
 	return err
 }
 
@@ -382,25 +422,59 @@ func (w *bufferedDelimitedWriter) Flush() error {
 	return w.Writer.Flush()
 }
 
-type CtxMutex chan struct{}
-
-func NewCtxMutex() CtxMutex {
-	return make(CtxMutex, 1)
+// The Protobuf writer performs multiple small writes when writing a message.
+// We need to buffer those writes, to make sure that we're not sending a new
+// packet for every single write.
+type bufferedDelimitedWriter1 struct {
+	*bufio.Writer
+	protoio.WriteCloser
 }
 
-func (m CtxMutex) Lock(ctx context.Context) error {
-	select {
-	case m <- struct{}{}:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+var writerPool1 = sync.Pool{
+	New: func() interface{} {
+		w := bufio.NewWriter(nil)
+		return &bufferedDelimitedWriter1{
+			Writer:      w,
+			WriteCloser: protoio.NewDelimitedWriter(w),
+		}
+	},
 }
 
-func (m CtxMutex) Unlock() {
-	select {
-	case <-m:
-	default:
-		panic("not locked")
+func WriteMsg1(w io.Writer, mes *pb.DhtMessage) error {
+	bw := writerPool1.Get().(*bufferedDelimitedWriter1)
+	bw.Reset(w)
+	err := bw.WriteMsg(mes)
+	if err == nil {
+		err = bw.Flush()
 	}
+	bw.Reset(nil)
+	writerPool1.Put(bw)
+	return err
+}
+
+func (w *bufferedDelimitedWriter1) Flush() error {
+	return w.Writer.Flush()
+}
+
+type bufferedDelimitedReader struct {
+	*bufio.Reader
+	msgio.ReadCloser
+}
+
+var readerPool = sync.Pool{
+	New: func() interface{} {
+		r := bufio.NewReader(nil)
+		return &bufferedDelimitedReader{
+			Reader:     r,
+			ReadCloser: msgio.NewReader(r),
+		}
+	},
+}
+
+func ReadMsg(r io.Reader) ([]byte, error) {
+
+	br := readerPool.Get().(*bufferedDelimitedReader)
+	br.Reset(r)
+
+	return br.ReadMsg()
 }

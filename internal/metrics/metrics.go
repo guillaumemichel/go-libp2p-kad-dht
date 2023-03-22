@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
@@ -23,8 +23,11 @@ var (
 
 // UpsertMessageType is a convenience upserts the message type
 // of a pb.Message into the KeyMessageType.
-func UpsertMessageType(m *pb.Message) tag.Mutator {
-	return tag.Upsert(KeyMessageType, m.Type.String())
+func UpsertMessageType(m *pb.DhtMessage) tag.Mutator {
+	// TODOGUI: get the string of the oneof
+	//return tag.Upsert(KeyMessageType, m.MessageType.String())
+	return tag.Upsert(KeyMessageType, "TODO")
+
 }
 
 // Measures

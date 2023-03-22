@@ -1,71 +1,27 @@
-package main
+package util
 
-// test program. we can use the go one.
 import (
 	"context"
-	"fmt"
 	"time"
 
 	// varint is here
 
+	mc "github.com/multiformats/go-multicodec"
+	mh "github.com/multiformats/go-multihash"
+
+	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-kad-dht/dht"
-	"github.com/libp2p/go-libp2p-kad-dht/dht/protocol"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
 )
 
-func main() {
-	ctx := context.Background()
-
-	var dht0, dht1 *dht.IpfsDHT
-	host0, err := libp2pHost(ctx, "10000", dht0)
-	if err != nil {
-		panic(err)
-	}
-	host1, err := libp2pHost(ctx, "10001", dht1)
-	if err != nil {
-		panic(err)
-	}
-
-	host0.Peerstore().AddAddrs(host1.ID(), host1.Addrs(), peerstore.TempAddrTTL)
-	host1.Peerstore().AddAddrs(host0.ID(), host0.Addrs(), peerstore.TempAddrTTL)
-
-	if err := host0.Connect(ctx, host0.Peerstore().PeerInfo(host1.ID())); err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("connected")
-
-	s, err := host0.NewStream(ctx, host1.ID(), protocol.ProtocolDHT)
-	if err != nil {
-		panic(err)
-	}
-	defer s.Close()
-
-	message := []byte("hello world")
-	_, err = s.Write(message)
-	if err != nil {
-		fmt.Println("error host0", err)
-	}
-
-	time.Sleep(1 * time.Second)
-
-	s.Write([]byte("hello world"))
-
-	time.Sleep(5 * time.Second)
-
-	host0.Close()
-	host1.Close()
-}
-
-func libp2pHost(ctx context.Context, port string, idht *dht.IpfsDHT) (host.Host, error) {
+func Libp2pHost(ctx context.Context, port string, idht *dht.IpfsDHT) (host.Host, *dht.IpfsDHT, error) {
 	// Set your own keypair
 	priv, _, err := crypto.GenerateKeyPair(
 		crypto.Ed25519, // Select your key type. Ed25519 are nice short
@@ -118,5 +74,23 @@ func libp2pHost(ctx context.Context, port string, idht *dht.IpfsDHT) (host.Host,
 	if err != nil {
 		panic(err)
 	}
-	return h2, nil
+	return h2, idht, nil
+}
+
+func GenCid() cid.Cid {
+	// Create a cid manually by specifying the 'prefix' parameters
+	pref := cid.Prefix{
+		Version:  1,
+		Codec:    uint64(mc.Raw),
+		MhType:   mh.SHA2_256,
+		MhLength: -1, // default length
+	}
+
+	// And then feed it some data
+	c, err := pref.Sum([]byte("Hello World!"))
+	if err != nil {
+		panic(err)
+	}
+
+	return c
 }

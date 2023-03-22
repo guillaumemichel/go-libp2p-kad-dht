@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNonceSze(t *testing.T) {
+func TestNonceSize(t *testing.T) {
 	// key is the hash of the given string
 	key := hash.PeerKadID("QmT8JQZj")
 	block, err := aes.NewCipher(key[:])

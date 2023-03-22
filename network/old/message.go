@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 
+	"github.com/libp2p/go-libp2p-kad-dht/dht/protocol"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
 	"github.com/libp2p/go-libp2p-kad-dht/records"
 	"github.com/multiformats/go-multicodec"
@@ -28,7 +29,7 @@ func marshallProvideMessage(record records.PublishRecord) []byte {
 	binary.BigEndian.AppendUint16(marshalled, DhtProvideFormatV0)
 	marshalled = append(marshalled, record.ID[:]...)
 	marshalled = append(marshalled, record.ServerKey[:]...)
-	marshalled = append(marshalled, record.EncPeerID[:]...)
+	//marshalled = append(marshalled, record.EncPeerID[:]...)
 	marshalled = append(marshalled, record.Signature[:]...)
 
 	return marshalled
@@ -58,19 +59,19 @@ func unmarsallMessage(message []byte) (records.PublishRecord, error) {
 	if err != nil {
 		return records.PublishRecord{}, err
 	}
-	if encAlgo != uint64(records.AesGcmMultiCodec) {
+	if encAlgo != uint64(protocol.AesGcmMultiCodec) {
 		return records.PublishRecord{}, errors.New("unexpected encryption algorithm")
 	}
 	len, nLen, err := varint.FromUvarint(message[nForamat+nKeyType+2*hash.Keysize+nEnc:])
 	if err != nil {
 		return records.PublishRecord{}, err
 	}
-	encPeerId := message[nForamat+nKeyType+2*hash.Keysize+nEnc+nLen+records.NonceSize : nForamat+nKeyType+2*hash.Keysize+nEnc+nLen+records.NonceSize+int(len)]
+	//encPeerId := message[nForamat+nKeyType+2*hash.Keysize+nEnc+nLen+records.NonceSize : nForamat+nKeyType+2*hash.Keysize+nEnc+nLen+records.NonceSize+int(len)]
 	signature := message[nForamat+nKeyType+2*hash.Keysize+nEnc+nLen+records.NonceSize+int(len):]
 	return records.PublishRecord{
 		ID:        id,
 		ServerKey: hash.KadKey(serverKey),
-		EncPeerID: encPeerId,
+		//EncPeerID: encPeerId,
 		Signature: signature,
 	}, nil
 
