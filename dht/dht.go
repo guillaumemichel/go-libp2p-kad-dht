@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
 	"github.com/libp2p/go-libp2p-kad-dht/network"
 	"github.com/libp2p/go-libp2p-kad-dht/provider"
 	"github.com/libp2p/go-libp2p-kad-dht/routing"
+	rt "github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -19,18 +21,21 @@ type IpfsDHT struct {
 	net      *network.DhtNetwork
 	server   *server.DhtServer
 	routing  *routing.DhtRouting
+	rt       rt.RoutingTable
 
 	ctx context.Context
 }
 
 func NewDHT(ctx context.Context, h host.Host) *IpfsDHT {
 	fmt.Println("creating new dht")
+	var rt rt.RoutingTable = rt.NewDhtRoutingTable(hash.PeerKadID(h.ID()))
 	net := network.NewDhtNetwork(h)
 	prov := provider.NewDhtProvider(net)
-	serv := server.NewDhtServer(net)
+	serv := server.NewDhtServer(net, rt)
 	routing := routing.NewDhtRouting(h)
 	dht := &IpfsDHT{
 		host:     h,
+		rt:       rt,
 		Provider: prov,
 		server:   serv,
 		routing:  routing,

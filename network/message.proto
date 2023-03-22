@@ -21,17 +21,16 @@ message Peer {
     CANNOT_CONNECT = 3;
   }
 
-  bytes id = 1;
+  string PeerId = 1; // peer.ID
   repeated bytes addrs = 2;
   ConnectionType connectionType = 3;
 }
 
-message FindPeer {
-  oneof Type {
-    bytes ID = 1;
-    Peer Peer = 2;
-  }
+message DhtFindPeerRequest {
+  bytes KadId = 1; // KadId
 }
+
+message DhtFindPeerResponse { repeated Peer Peers = 1; }
 
 message EncPeerId {
   bytes EncPeerIdFormatVarint = 1;
@@ -77,9 +76,11 @@ message DhtLookupResponse {
 
 message DhtMessage {
   oneof MessageType {
-    DhtProvideRequest ProvideRequestType = 1;
-    DhtProvideResponse ProvideResponseType = 2;
-    DhtLookupRequest LookupRequestType = 3;
-    DhtLookupResponse LookupResponseType = 4;
+    DhtFindPeerRequest FindPeerRequestType = 1;
+    DhtFindPeerResponse FindPeerResponseType = 2;
+    DhtProvideRequest ProvideRequestType = 3;
+    DhtProvideResponse ProvideResponseType = 4;
+    DhtLookupRequest LookupRequestType = 5;
+    DhtLookupResponse LookupResponseType = 6;
   }
 }

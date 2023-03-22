@@ -3,6 +3,7 @@ package hash
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"math"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
@@ -29,4 +30,16 @@ func PeerKadID(p peer.ID) KadKey {
 	hasher, _ := mhreg.GetHasher(HasherID)
 	hasher.Write([]byte(p))
 	return KadKey(hasher.Sum(nil))
+}
+
+func CommonPrefixLength(a, b KadKey) int {
+	var xored byte
+	for i := 0; i < Keysize; i++ {
+		xored = a[i] ^ b[i]
+		if xored != 0 {
+			return i*8 + 7 - int(math.Log2(float64(xored)))
+		}
+	}
+	return 8 * Keysize
+
 }

@@ -19,7 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-msgio"
-	"github.com/libp2p/go-msgio/protoio"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 )
@@ -382,6 +381,9 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.DhtMessage)
 	}
 }
 
+// The Protobuf writer performs multiple small writes when writing a message.
+// We need to buffer those writes, to make sure that we're not sending a new
+// packet for every single write.
 type bufferedDelimitedWriter struct {
 	*bufio.Writer
 	msgio.WriteCloser
@@ -419,40 +421,6 @@ func WriteMsg(w io.Writer, mes *pb.DhtMessage) error {
 }
 
 func (w *bufferedDelimitedWriter) Flush() error {
-	return w.Writer.Flush()
-}
-
-// The Protobuf writer performs multiple small writes when writing a message.
-// We need to buffer those writes, to make sure that we're not sending a new
-// packet for every single write.
-type bufferedDelimitedWriter1 struct {
-	*bufio.Writer
-	protoio.WriteCloser
-}
-
-var writerPool1 = sync.Pool{
-	New: func() interface{} {
-		w := bufio.NewWriter(nil)
-		return &bufferedDelimitedWriter1{
-			Writer:      w,
-			WriteCloser: protoio.NewDelimitedWriter(w),
-		}
-	},
-}
-
-func WriteMsg1(w io.Writer, mes *pb.DhtMessage) error {
-	bw := writerPool1.Get().(*bufferedDelimitedWriter1)
-	bw.Reset(w)
-	err := bw.WriteMsg(mes)
-	if err == nil {
-		err = bw.Flush()
-	}
-	bw.Reset(nil)
-	writerPool1.Put(bw)
-	return err
-}
-
-func (w *bufferedDelimitedWriter1) Flush() error {
 	return w.Writer.Flush()
 }
 
