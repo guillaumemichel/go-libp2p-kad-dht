@@ -16,17 +16,28 @@ func zeroBytes(n int) []byte {
 	return bytes
 }
 
-func TestAdd(t *testing.T) {
-	key0 := hash.KadKey(zeroBytes(32))                          // 000000...000
-	key1 := hash.KadKey(append([]byte{0x40}, zeroBytes(31)...)) // 010000...000
-	key2 := hash.KadKey(append([]byte{0x80}, zeroBytes(31)...)) // 100000...000
-	key3 := hash.KadKey(append([]byte{0xc0}, zeroBytes(31)...)) // 110000...000
-	key4 := hash.KadKey(append([]byte{0xe0}, zeroBytes(31)...)) // 111000...000
-	key5 := hash.KadKey(append([]byte{0x60}, zeroBytes(31)...)) // 011000...000
-	key6 := hash.KadKey(append([]byte{0x70}, zeroBytes(31)...)) // 011100...000
-	key7 := hash.KadKey(append([]byte{0x18}, zeroBytes(31)...)) // 000110...000
-	key8 := hash.KadKey(append([]byte{0x14}, zeroBytes(31)...)) // 000101...000
-	key9 := hash.KadKey(append([]byte{0x10}, zeroBytes(31)...)) // 000100...100
+var (
+	key0  = hash.KadKey(zeroBytes(32))                          // 000000...000
+	key1  = hash.KadKey(append([]byte{0x40}, zeroBytes(31)...)) // 010000...000
+	key2  = hash.KadKey(append([]byte{0x80}, zeroBytes(31)...)) // 100000...000
+	key3  = hash.KadKey(append([]byte{0xc0}, zeroBytes(31)...)) // 110000...000
+	key4  = hash.KadKey(append([]byte{0xe0}, zeroBytes(31)...)) // 111000...000
+	key5  = hash.KadKey(append([]byte{0x60}, zeroBytes(31)...)) // 011000...000
+	key6  = hash.KadKey(append([]byte{0x70}, zeroBytes(31)...)) // 011100...000
+	key7  = hash.KadKey(append([]byte{0x18}, zeroBytes(31)...)) // 000110...000
+	key8  = hash.KadKey(append([]byte{0x14}, zeroBytes(31)...)) // 000101...000
+	key9  = hash.KadKey(append([]byte{0x10}, zeroBytes(31)...)) // 000100...000
+	key10 = hash.KadKey(append([]byte{0x20}, zeroBytes(31)...)) // 001000...000
+	key11 = hash.KadKey(append([]byte{0x30}, zeroBytes(31)...)) // 001100...100
+)
+
+func TestBucketSize(t *testing.T) {
+	bucketSize := 100
+	rt := NewDhtRoutingTable(key0, bucketSize)
+	require.Equal(t, bucketSize, rt.BucketSize())
+}
+
+func TestAddPeer(t *testing.T) {
 
 	dumbInfo := peer.AddrInfo{}
 
@@ -67,4 +78,26 @@ func TestAdd(t *testing.T) {
 	require.True(t, rt.addPeer(key8, dumbInfo))
 	// cannot add a third peer with CPL = 3
 	require.False(t, rt.addPeer(key9, dumbInfo))
+
+	// add two peers with CPL = 2, bucket=2
+	require.True(t, rt.addPeer(key10, dumbInfo))
+	require.True(t, rt.addPeer(key11, dumbInfo))
+}
+
+func TestRemovePeer(t *testing.T) {
+	dumbInfo := peer.AddrInfo{}
+
+	rt := NewDhtRoutingTable(key0, 2)
+	rt.addPeer(key1, dumbInfo)
+	require.False(t, rt.RemovePeer(key2))
+	require.True(t, rt.RemovePeer(key1))
+}
+
+func TestFindPeer(t *testing.T) {
+	dumbInfo := peer.AddrInfo{ID: "QmPeer"}
+
+	rt := NewDhtRoutingTable(key0, 2)
+	rt.addPeer(key1, dumbInfo)
+	require.Equal(t, dumbInfo.ID, rt.Find(key1).ID)
+	require.Equal(t, peer.ID(""), rt.Find(key2).ID)
 }
