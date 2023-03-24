@@ -1,6 +1,7 @@
 package simplert
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
@@ -55,17 +56,19 @@ func (rt *DhtRoutingTable) SizeOfBucket(bucketId int) int {
 }
 
 func (rt *DhtRoutingTable) AddPeer(pi peer.AddrInfo) bool {
+	fmt.Println("AddPeer", hash.PeerKadID(pi.ID))
 	return rt.addPeer(hash.PeerKadID(pi.ID), pi)
 }
 
 func (rt *DhtRoutingTable) addPeer(kadId hash.KadKey, pi peer.AddrInfo) bool {
-
+	fmt.Println("addPeer", kadId)
 	bid := rt.BucketIdForKey(kadId)
 
 	lastBucketId := len(rt.buckets) - 1
 
 	if rt.alreadyInBucket(kadId, bid) {
 		// discard new peer
+		fmt.Println("already in bucket", kadId)
 		return false
 	}
 
@@ -73,6 +76,7 @@ func (rt *DhtRoutingTable) addPeer(kadId hash.KadKey, pi peer.AddrInfo) bool {
 		// new peer doesn't belong in last bucket
 		if len(rt.buckets[bid]) >= rt.bucketSize {
 			// bucket is full, discard new peer
+			fmt.Println("bucket is full", kadId)
 			return false
 		}
 
@@ -152,7 +156,7 @@ func (rt *DhtRoutingTable) Find(kadId hash.KadKey) peer.AddrInfo {
 	return peer.AddrInfo{}
 }
 
-// TODO: not working as expected
+// TODO: not exactly working as expected
 // returns min(n, bucketSize) peers from the bucket matching the given key
 func (rt *DhtRoutingTable) NearestPeers(kadId hash.KadKey, n int) []peer.AddrInfo {
 	bid := rt.BucketIdForKey(kadId)

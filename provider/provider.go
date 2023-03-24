@@ -6,7 +6,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
-	"github.com/libp2p/go-libp2p-kad-dht/network"
+	dhtnet "github.com/libp2p/go-libp2p-kad-dht/network"
 	"github.com/libp2p/go-libp2p-kad-dht/records"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -22,20 +22,20 @@ type Provider interface {
 }
 
 type DhtProvider struct {
-	trackList []cid.Cid
-	peerid    peer.ID
-	privkey   crypto.PrivKey
-	host      host.Host
-	net       *network.DhtNetwork
+	trackList   []cid.Cid
+	peerid      peer.ID
+	privkey     crypto.PrivKey
+	host        host.Host
+	msgEndpoint *dhtnet.MessageEndpoint
 }
 
-func NewDhtProvider(net *network.DhtNetwork) *DhtProvider {
+func NewDhtProvider(msgEndpoint *dhtnet.MessageEndpoint) *DhtProvider {
 	return &DhtProvider{
-		trackList: make([]cid.Cid, 0),
-		peerid:    net.Host.ID(),
-		privkey:   net.Host.Peerstore().PrivKey(net.Host.ID()),
-		host:      net.Host,
-		net:       net,
+		trackList:   make([]cid.Cid, 0),
+		peerid:      msgEndpoint.Host.ID(),
+		privkey:     msgEndpoint.Host.Peerstore().PrivKey(msgEndpoint.Host.ID()),
+		host:        msgEndpoint.Host,
+		msgEndpoint: msgEndpoint,
 	}
 }
 
@@ -73,16 +73,7 @@ func (prov *DhtProvider) Provide(p peer.ID, c cid.Cid) error {
 		EncPeerId: encPeerId,
 		Signature: signature,
 	}
-	/*
-		marshalled := records.SerializePublishRecord2(rec)
-
-		// find 20 providers
-		err = prov.net.SendMessage(context.Background(), p, marshalled)
-		if err != nil {
-			fmt.Println(err)
-		}
-	*/
-	err = prov.net.SendProvide(context.Background(), p, &rec)
+	err = prov.msgEndpoint.SendProvide(context.Background(), p, &rec)
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -416,7 +416,6 @@ func WriteMsg(w io.Writer, mes *pb.DhtMessage) error {
 	}
 	bw.Reset(nil)
 	writerPool.Put(bw)
-	fmt.Println("wrote message", len(msg), msg)
 	return err
 }
 

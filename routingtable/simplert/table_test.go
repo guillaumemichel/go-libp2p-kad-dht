@@ -1,6 +1,7 @@
 package simplert
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
@@ -82,6 +83,15 @@ func TestAddPeer(t *testing.T) {
 	// add two peers with CPL = 2, bucket=2
 	require.True(t, rt.addPeer(key10, dumbInfo))
 	require.True(t, rt.addPeer(key11, dumbInfo))
+
+	// remove all peers with CPL = 0
+	rt.RemovePeer(key3)
+	rt.RemovePeer(key4)
+	// a new peer with CPL = 0 can be added
+	require.True(t, rt.AddPeer(dumbInfo))
+	// cannot add the same peer twice even tough
+	// the bucket is not full
+	require.False(t, rt.AddPeer(dumbInfo))
 }
 
 func TestRemovePeer(t *testing.T) {
@@ -100,4 +110,51 @@ func TestFindPeer(t *testing.T) {
 	rt.addPeer(key1, dumbInfo)
 	require.Equal(t, dumbInfo.ID, rt.Find(key1).ID)
 	require.Equal(t, peer.ID(""), rt.Find(key2).ID)
+	require.True(t, rt.RemovePeer(key1))
+	require.Equal(t, peer.ID(""), rt.Find(key1).ID)
+}
+
+func TestNearestPeers(t *testing.T) {
+
+	dumbInfo := make([]peer.AddrInfo, 0, 12)
+	for i := 0; i < 12; i++ {
+		dumbInfo = append(dumbInfo, peer.AddrInfo{ID: peer.ID(fmt.Sprintf("QmPeer%d", i))})
+	}
+
+	bucketSize := 5
+
+	rt := NewDhtRoutingTable(key0, bucketSize)
+	rt.addPeer(key1, dumbInfo[1])
+	rt.addPeer(key2, dumbInfo[2])
+	rt.addPeer(key3, dumbInfo[3])
+	rt.addPeer(key4, dumbInfo[4])
+	rt.addPeer(key5, dumbInfo[5])
+	rt.addPeer(key6, dumbInfo[6])
+	rt.addPeer(key7, dumbInfo[7])
+	rt.addPeer(key8, dumbInfo[8])
+	rt.addPeer(key9, dumbInfo[9])
+	rt.addPeer(key10, dumbInfo[10])
+	rt.addPeer(key11, dumbInfo[11])
+
+	// find the 2 nearest peers to key0
+	peers := rt.NearestPeers(key0, 10)
+	require.Equal(t, bucketSize, len(peers))
+
+	keys := make([]peer.ID, 0, len(peers))
+	for _, p := range peers {
+		keys = append(keys, p.ID)
+	}
+	expectedOrder := []peer.ID{dumbInfo[9].ID, dumbInfo[8].ID, dumbInfo[7].ID, dumbInfo[10].ID, dumbInfo[11].ID}
+	require.Equal(t, expectedOrder, keys)
+
+	peers = rt.NearestPeers(key11, 2)
+	require.Equal(t, 2, len(peers))
+
+	// create routing table with a single duplicate peer
+	// useful to test peers sorting with duplicate (even tough it should never happen)
+	rt2 := NewDhtRoutingTable(key0, 2)
+	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{dumbInfo[1], key1})
+	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{dumbInfo[1], key1})
+	peers = rt2.NearestPeers(key0, 10)
+	require.Equal(t, peers[0], peers[1])
 }

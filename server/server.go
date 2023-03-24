@@ -13,21 +13,20 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
 
 	"github.com/libp2p/go-libp2p/core/network"
-	"google.golang.org/protobuf/proto"
 )
 
 type DhtServer struct {
-	net *dhtnet.DhtNetwork
-	rt  rt.RoutingTable
+	msgEndpoint *dhtnet.MessageEndpoint
+	rt          rt.RoutingTable
 }
 
-func NewDhtServer(net *dhtnet.DhtNetwork, rt rt.RoutingTable) *DhtServer {
+func NewDhtServer(msgEndpoint *dhtnet.MessageEndpoint, rt rt.RoutingTable) *DhtServer {
 	server := DhtServer{
-		net: net,
-		rt:  rt,
+		msgEndpoint: msgEndpoint,
+		rt:          rt,
 	}
 	// protocol must be defined in options
-	server.net.Host.SetStreamHandler(protocol.ProtocolDHT, server.handleNewStream)
+	server.msgEndpoint.Host.SetStreamHandler(protocol.ProtocolDHT, server.handleNewStream)
 
 	return &server
 }
@@ -49,7 +48,8 @@ func (dht *DhtServer) handleNewMessage(s network.Stream) bool {
 	rPeer := s.Conn().RemotePeer()
 
 	for {
-		msg, err := dhtnet.ReadMsg(s)
+		req := &pb.DhtMessage{}
+		err := dhtnet.ReadMsg(s, req)
 		if err != nil {
 			if err == io.EOF {
 				return true
@@ -57,24 +57,18 @@ func (dht *DhtServer) handleNewMessage(s network.Stream) bool {
 			fmt.Println("error reading message:", err)
 			return false
 		}
-		dhtMsg := &pb.DhtMessage{}
-		err = proto.Unmarshal(msg, dhtMsg)
-		if err != nil {
-			fmt.Println("error unmarshaling message:", err)
-			return false
-		}
 
 		// TODO: enhance with https://pkg.go.dev/google.golang.org/protobuf/reflect/protoreflect
-		if dhtMsg.GetProvideRequestType() != nil {
-			if !dht.handleProvideRequest(s, dhtMsg.GetProvideRequestType()) {
+		if req.GetProvideRequestType() != nil {
+			if !dht.handleProvideRequest(s, req.GetProvideRequestType()) {
 				return false
 			}
-		} else if dhtMsg.GetFindPeerRequestType() != nil {
-			if !dht.handleFindPeer(s, dhtMsg.GetFindPeerRequestType()) {
+		} else if req.GetFindPeerRequestType() != nil {
+			if !dht.handleFindPeer(s, req.GetFindPeerRequestType()) {
 				return false
 			}
 		}
-		dht.rt.AddPeer(dht.net.Host.Peerstore().PeerInfo(rPeer))
+		dht.rt.AddPeer(dht.msgEndpoint.Host.Peerstore().PeerInfo(rPeer))
 	}
 }
 

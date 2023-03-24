@@ -43,6 +43,12 @@ I.e `fullrt` only has a different `Routing Table` implementation (allowing to by
 
 `Server` is responsible for handling incoming requests. For `Put` and `Get` requests it must write to and read from the `Provider Store`. For `FindClosestPeers` requests, it needs the `Routing Table`'s `LocalClosestPeers` function. Actions in `Server` are usually triggered by the `Routing` modules from another peer across the network.
 
+### Network
+
+Use proto3 instead of custom data format.
+Use r := pbio.NewDelimitedReader(s, signedIDSize), as reader and similar writer.
+Use sync.Pool to avoid too much allocations.
+
 ## DHT Interface
 
 For now, the only required interface is a `StartProvide`, `StopProvide`, `ProvideList`, `FindProvs`, `FindPeer`. For IPNS, a `GetValue` will be required.
