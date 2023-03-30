@@ -32,7 +32,7 @@ func NewDHT(ctx context.Context, h host.Host) *IpfsDHT {
 	msgEndpoint := dhtnet.NewMessageEndpoint(h)
 	prov := provider.NewDhtProvider(msgEndpoint)
 	serv := server.NewDhtServer(msgEndpoint, rt)
-	routing := routing.NewDhtRouting(h)
+	routing := routing.NewDhtRouting(msgEndpoint, rt, 10)
 	dht := &IpfsDHT{
 		host:        h,
 		rt:          rt,

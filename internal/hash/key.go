@@ -21,15 +21,31 @@ const (
 
 type KadKey [Keysize]byte
 
+var (
+	ZeroKey = KadKey{}
+)
+
 func HexKadID(kadid KadKey) string {
 	return hex.EncodeToString(kadid[:])
 }
 
 func PeerKadID(p peer.ID) KadKey {
+	return StringKadID(p.String())
+}
+
+func StringKadID(s string) KadKey {
 	// hasher is the hash function used to derive the second hash identifiers
 	hasher, _ := mhreg.GetHasher(HasherID)
-	hasher.Write([]byte(p))
+	hasher.Write([]byte(s))
 	return KadKey(hasher.Sum(nil))
+}
+
+func (k KadKey) Xor(other KadKey) KadKey {
+	var xored KadKey
+	for i := 0; i < Keysize; i++ {
+		xored[i] = k[i] ^ other[i]
+	}
+	return xored
 }
 
 func CommonPrefixLength(a, b KadKey) int {
@@ -42,4 +58,16 @@ func CommonPrefixLength(a, b KadKey) int {
 	}
 	return 8 * Keysize
 
+}
+
+func (k KadKey) Compare(other KadKey) int {
+	for i := 0; i < Keysize; i++ {
+		if k[i] < other[i] {
+			return -1
+		}
+		if k[i] > other[i] {
+			return 1
+		}
+	}
+	return 0
 }

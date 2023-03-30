@@ -3,8 +3,8 @@ package routing
 import (
 	"context"
 
+	dhtnet "github.com/libp2p/go-libp2p-kad-dht/network"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
-	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -20,15 +20,15 @@ type ContentRouting interface {
 }
 
 type DhtRouting struct {
-	host        host.Host
+	me          *dhtnet.MessageEndpoint
 	rt          simplert.RoutingTable
 	concurrency int
 	qManager    *queryManager
 }
 
-func NewDhtRouting(host host.Host, rt simplert.RoutingTable, concurrency int) *DhtRouting {
+func NewDhtRouting(me *dhtnet.MessageEndpoint, rt simplert.RoutingTable, concurrency int) *DhtRouting {
 	r := &DhtRouting{
-		host:        host,
+		me:          me,
 		rt:          rt,
 		concurrency: concurrency,
 	}

@@ -25,9 +25,9 @@ func (r *DhtRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo, er
 // FindLocal looks for a peer with a given ID connected to this dht and returns
 // the peer and the table it was found in.
 func (r *DhtRouting) FindLocal(ctx context.Context, id peer.ID) peer.AddrInfo {
-	switch r.host.Network().Connectedness(id) {
+	switch r.me.Host.Network().Connectedness(id) {
 	case network.Connected, network.CanConnect:
-		return r.host.Peerstore().PeerInfo(id)
+		return r.me.Host.Peerstore().PeerInfo(id)
 	default:
 		return peer.AddrInfo{}
 	}
