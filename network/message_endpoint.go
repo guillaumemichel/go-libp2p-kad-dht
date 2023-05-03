@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/libp2p/go-libp2p-kad-dht/dht/protocol"
@@ -33,18 +34,21 @@ func NewMessageEndpoint(host host.Host) *MessageEndpoint {
 func (msgEndpoint *MessageEndpoint) SendDhtRequest(ctx context.Context, p peer.ID, req *pb.DhtMessage) (*pb.DhtMessage, error) {
 	s, err := msgEndpoint.Host.NewStream(ctx, p, protocol.ProtocolDHT)
 	if err != nil {
+		fmt.Println("stream creation error")
 		return nil, err
 	}
 	defer s.Close()
 
 	err = WriteMsg(s, req)
 	if err != nil {
+		fmt.Println("error writing message")
 		return nil, err
 	}
 
 	resp := &pb.DhtMessage{}
 	err = ReadMsg(s, resp)
 	if err != nil {
+		fmt.Println("error reading message")
 		return nil, err
 	}
 

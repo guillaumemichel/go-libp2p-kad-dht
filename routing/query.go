@@ -12,7 +12,11 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-const PEERSTORE_ENTRY_LIFETIME = 30 * time.Minute
+const PEERSTORE_ENTRY_TTL = 30 * time.Minute
+
+var (
+	ErrUnexpectedResponseType = fmt.Errorf("unexpected response type")
+)
 
 type query struct {
 	// query peer set
@@ -34,42 +38,75 @@ type query struct {
 
 type queryResult struct {
 	// errors
-	peer peer.AddrInfo
+	err  error
+	peer *peer.AddrInfo
 	// values
 }
 
 type queryManager struct {
-	limit          int
-	ongoingQueries []*query
-	newQueries     chan *query
+	lk sync.Mutex
+	//ongoingQueries []*query
+	queryLimit       int
+	currentlyOngoing int
+	queuedQueries    []*query // TODO: replace with a queue
+	newQueries       chan *query
+	doneChan         chan struct{}
 
-	kill chan struct{}
+	ctx context.Context
 
 	routing *DhtRouting
 }
 
-func (r *DhtRouting) newQueryManager(limit int) *queryManager {
+func (r *DhtRouting) newQueryManager(ctx context.Context, limit int) *queryManager {
 	qm := &queryManager{
-		limit:          limit,
-		ongoingQueries: []*query{},
-		newQueries:     make(chan *query),
-		routing:        r,
+		ctx:              ctx,
+		queryLimit:       limit,
+		currentlyOngoing: 0,
+		//ongoingQueries: []*query{},
+		queuedQueries: []*query{},
+		newQueries:    make(chan *query),
+		doneChan:      make(chan struct{}),
+		routing:       r,
 	}
-	qm.run()
+	go qm.run()
 	return qm
 }
 
 func (qm *queryManager) run() {
 	for {
-		if len(qm.ongoingQueries) < qm.limit {
-			if len(qm.queuedQueries) > 0 {
-				q := qm.queuedQueries[0]
-				qm.queuedQueries = qm.queuedQueries[1:]
-				qm.ongoingQueries = append(qm.ongoingQueries, q)
-				go q.run()
+		qm.lk.Lock()
+		queriesLimitReached := qm.currentlyOngoing >= qm.queryLimit
+		qm.lk.Unlock()
+		if !queriesLimitReached {
+			// there are workers available to take on a new query
+			select {
+			case <-qm.ctx.Done():
+				return
+			case q := <-qm.newQueries:
+				qm.lk.Lock()
+				qm.currentlyOngoing++
+				qm.lk.Unlock()
+
+				go func() {
+					q.run()
+
+					qm.lk.Lock()
+					if qm.currentlyOngoing == qm.queryLimit {
+						// if no worker is available, announce that a query has finished
+						qm.doneChan <- struct{}{}
+					}
+					qm.currentlyOngoing--
+					qm.lk.Unlock()
+				}()
+			}
+		} else {
+			// no workers available, wait for one to finish or ctx to be cancelled
+			select {
+			case <-qm.ctx.Done():
+				return
+			case <-qm.doneChan:
 			}
 		}
-		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -88,21 +125,25 @@ func (qm *queryManager) newQuery(ctx context.Context, kadId hash.KadKey) *query 
 	}
 }
 
-func (qm *queryManager) Query(ctx context.Context, kadId hash.KadKey, msg *pb.DhtMessage, stopCond func([]*pb.DhtMessage) (bool, []*pb.DhtMessage)) chan queryResult {
+func (qm *queryManager) Query(ctx context.Context, kadId hash.KadKey, msg *pb.DhtMessage) chan queryResult {
 	q := qm.newQuery(ctx, kadId)
-	qm.queuedQueries = append(qm.queuedQueries, q)
+	qm.newQueries <- q
 	return q.results
 }
 
 func (q *query) run() {
 	select {
 	case <-q.ctx.Done():
-		q.results <- queryResult{} // error
+		q.results <- queryResult{err: fmt.Errorf("ctx done")} // error
 		return
 	default:
 	}
 
 	localClosest := q.routing.rt.NearestPeers(q.kadId, q.routing.concurrency)
+	if len(localClosest) == 0 {
+		q.results <- queryResult{err: fmt.Errorf("empty routing table")} // error
+		return
+	}
 	for _, p := range localClosest {
 		q.qpeerset.AddPeer(p)
 	}
@@ -112,8 +153,20 @@ func (q *query) run() {
 			for {
 				// until ctx is cancelled, or we have enough results, or we don't learn about new peers
 				q.lk.Lock()
+				defer q.lk.Unlock()
+				if q.done {
+					return
+				}
+				select {
+				case <-q.ctx.Done():
+					// first worker to detect ctx.Done() will let their comrades know
+					q.done = true
+					q.results <- queryResult{err: fmt.Errorf("ctx done")} // error
+					return
+				default:
+				}
 				qpeers := q.qpeerset.ClosestHeard(1)
-				q.lk.Unlock()
+
 				resp, err := q.routing.me.SendDhtRequest(q.ctx, qpeers[0].ID, q.req)
 				if err != nil {
 					fmt.Println("error sending request: ", err)
@@ -121,7 +174,7 @@ func (q *query) run() {
 				}
 				err = q.handleResponse(resp)
 				if err != nil {
-					fmt.Println("error handling response: ", err)
+					q.results <- queryResult{err: err} // error
 					continue
 				}
 			}
@@ -133,7 +186,7 @@ func (q *query) handleResponse(resp *pb.DhtMessage) error {
 	if resp.GetFindPeerResponseType() != nil {
 		return q.handleFindPeerResponse(resp.GetFindPeerResponseType())
 	} else {
-		return fmt.Errorf("unexpected response type: %v", resp)
+		return ErrUnexpectedResponseType
 	}
 }
 
@@ -178,7 +231,7 @@ func (q *query) handlePeers(peers []peer.AddrInfo) []*qpeer {
 
 	for _, p := range peers {
 		// add to peerstore
-		q.routing.me.Host.Peerstore().AddAddrs(p.ID, p.Addrs, PEERSTORE_ENTRY_LIFETIME)
+		q.routing.me.Host.Peerstore().AddAddrs(p.ID, p.Addrs, PEERSTORE_ENTRY_TTL)
 		// add to routing table
 		q.routing.rt.AddPeer(p)
 	}
@@ -200,7 +253,7 @@ const (
 )
 
 type qpeer struct {
-	peer.AddrInfo
+	*peer.AddrInfo
 	dist      hash.KadKey
 	peerState peerState
 
@@ -222,7 +275,7 @@ func newQpeerset(key hash.KadKey) *qpeerset {
 
 func (qps *qpeerset) AddPeer(ai peer.AddrInfo) *qpeer {
 	qpeer := &qpeer{
-		AddrInfo:  ai,
+		AddrInfo:  &ai,
 		dist:      qps.key.Xor(hash.PeerKadID(ai.ID)),
 		peerState: PeerHeard,
 	}

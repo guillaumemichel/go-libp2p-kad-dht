@@ -2,7 +2,6 @@ package dht
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
 	dhtnet "github.com/libp2p/go-libp2p-kad-dht/network"
@@ -16,7 +15,7 @@ import (
 )
 
 type IpfsDHT struct {
-	host        host.Host
+	Host        host.Host
 	Provider    provider.Provider
 	server      *server.DhtServer
 	routing     *routing.DhtRouting
@@ -27,14 +26,13 @@ type IpfsDHT struct {
 }
 
 func NewDHT(ctx context.Context, h host.Host) *IpfsDHT {
-	fmt.Println("creating new dht")
 	var rt rt.RoutingTable = rt.NewDhtRoutingTable(hash.PeerKadID(h.ID()), 20)
 	msgEndpoint := dhtnet.NewMessageEndpoint(h)
 	prov := provider.NewDhtProvider(msgEndpoint)
 	serv := server.NewDhtServer(msgEndpoint, rt)
-	routing := routing.NewDhtRouting(msgEndpoint, rt, 10)
+	routing := routing.NewDhtRouting(ctx, msgEndpoint, rt, 10, routing.QUERY_LIMIT)
 	dht := &IpfsDHT{
-		host:        h,
+		Host:        h,
 		rt:          rt,
 		Provider:    prov,
 		server:      serv,

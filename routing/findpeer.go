@@ -3,6 +3,8 @@ package routing
 import (
 	"context"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal/hash"
+	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/routing"
@@ -18,6 +20,14 @@ func (r *DhtRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo, er
 	if addrInfo := r.FindLocal(ctx, p); addrInfo.ID != "" {
 		return addrInfo, nil
 	}
+
+	kadId := hash.PeerKadID(p)
+	req := &pb.DhtMessage{
+		MessageType: &pb.DhtMessage_FindPeerRequestType{
+			FindPeerRequestType: &pb.DhtFindPeerRequest{KadId: kadId[:]},
+		},
+	}
+	r.qManager.Query(ctx, kadId, req)
 
 	return peer.AddrInfo{}, routing.ErrNotFound
 }

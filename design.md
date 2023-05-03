@@ -12,10 +12,10 @@ flowchart TD
     P --> PS
     P --> R
     K --> R["<font size=5><b>Routing</b></font><br>FindClosestPeers()<br>GetValue()<br>FindPeer()"]
-    H["<font size=5><b>Handler</b></font><br>Put()<br>Get()<br>FindClosestPeers()"] --> PS
-    R -.->|over network| H
-    H --> R
-    H --> RT["<font size=5><b>Routing Table</b></font><br>LocalClosestPeers()"]
+    S["<font size=5><b>Server</b></font><br>Put()<br>Get()<br>FindClosestPeers()"] --> PS
+    R -.->|over network| S
+    S --> R
+    S --> RT["<font size=5><b>Routing Table</b></font><br>LocalClosestPeers()"]
     R --> RT
 ```
 
@@ -52,3 +52,10 @@ Use sync.Pool to avoid too much allocations.
 ## DHT Interface
 
 For now, the only required interface is a `StartProvide`, `StopProvide`, `ProvideList`, `FindProvs`, `FindPeer`. For IPNS, a `GetValue` will be required.
+
+# [Mutlitier Architecture](https://en.wikipedia.org/wiki/Multitier_architecture)
+
+Each module should follow the three-tier architecture. The Presentation Tier contains the interfaces (high level abstractions). The Presentation Tier of each module is assumed to be the unique source of truth to what the module should be doing. The Application Tier contains the actual implementations. There can be multiple implementations for each module, they can either live in the same folder, or in another repository.
+
+A Data Tier may be required in the future for specific modules.
+

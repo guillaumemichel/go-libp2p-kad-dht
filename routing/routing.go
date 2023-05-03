@@ -20,18 +20,20 @@ type ContentRouting interface {
 }
 
 type DhtRouting struct {
+	ctx         context.Context
 	me          *dhtnet.MessageEndpoint
 	rt          simplert.RoutingTable
 	concurrency int
 	qManager    *queryManager
 }
 
-func NewDhtRouting(me *dhtnet.MessageEndpoint, rt simplert.RoutingTable, concurrency int) *DhtRouting {
+func NewDhtRouting(ctx context.Context, me *dhtnet.MessageEndpoint, rt simplert.RoutingTable, concurrency int, queryLimit int) *DhtRouting {
 	r := &DhtRouting{
+		ctx:         ctx,
 		me:          me,
 		rt:          rt,
 		concurrency: concurrency,
 	}
-	r.qManager = r.newQueryManager(QUERY_LIMIT)
+	r.qManager = r.newQueryManager(ctx, queryLimit)
 	return r
 }
