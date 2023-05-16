@@ -120,3 +120,32 @@ stateDiagram-v2
         Remove request from ongoing requests list
     end note
 ```
+
+## DHT Interface
+
+Context as parameter everywhere
+
+### Peer Routing
+
+- `FindPeers(PeerIDs)`
+- (`GetClosestPeers(key)`)
+
+### Provider Records
+
+**Provide**
+- `StartProvide(CIDs)`
+- `StopProvide(CIDs)`
+- `ListProvide()`
+
+**Lookup**
+- `FindProvidersAsync(CID)`
+- `FindProviders(CID)`
+
+### IPNS
+
+- `PutValues(keys, values)`
+- `GetValues(keys)`
+
+### Others
+
+- (`GetPublicKey(PeerID)` ??)
