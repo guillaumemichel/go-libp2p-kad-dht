@@ -49,6 +49,7 @@ Use proto3 instead of custom data format.
 Use r := pbio.NewDelimitedReader(s, signedIDSize), as reader and similar writer.
 Use sync.Pool to avoid too much allocations.
 
+<!--
 ## DHT Interface
 
 For now, the only required interface is a `StartProvide`, `StopProvide`, `ProvideList`, `FindProvs`, `FindPeer`. For IPNS, a `GetValue` will be required.
@@ -58,7 +59,7 @@ For now, the only required interface is a `StartProvide`, `StopProvide`, `Provid
 Each module should follow the three-tier architecture. The Presentation Tier contains the interfaces (high level abstractions). The Presentation Tier of each module is assumed to be the unique source of truth to what the module should be doing. The Application Tier contains the actual implementations. There can be multiple implementations for each module, they can either live in the same folder, or in another repository.
 
 A Data Tier may be required in the future for specific modules.
-
+-->
 ## DHT Lookup state machine
 
 The goal is for the implementation to be single threaded. The most challenging part is request concurrency, in the Routing Module. The DHT Lookup process state machine can be described as follow:
