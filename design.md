@@ -59,3 +59,64 @@ Each module should follow the three-tier architecture. The Presentation Tier con
 
 A Data Tier may be required in the future for specific modules.
 
+## DHT Lookup state machine
+
+The goal is for the implementation to be single threaded. The most challenging part is request concurrency, in the Routing Module. The DHT Lookup process state machine can be described as follow:
+
+```mermaid
+---
+title: DHT Lookup State Machine
+---
+stateDiagram-v2
+    direction LR
+    
+    Wait
+    
+    %% new lookup request
+    DefineQueue: Define empty peer queue</br>for the new request
+    FindClosestInRT: Find closest</br>peers in the RT
+    AddPeersToQueue: Add peers to queue
+    SendRequest: Send request to</br>first peer in queue
+    MarkPeerContacted: Mark this peer as contacted
+
+    WaitForResponses: Wait for responses
+    ProviderRecordFound: Provider record found?
+
+    ReturnResult: Return result to requester
+    AllRequestsAnswered: All requests answered?
+
+    Wait --> DefineQueue: new lookup</br>request
+    DefineQueue --> FindClosestInRT
+    FindClosestInRT --> AddPeersToQueue
+    AddPeersToQueue --> SendRequest
+    SendRequest --> MarkPeerContacted
+    MarkPeerContacted --> SendRequest: #inflight messages <</br>concurrency factor
+    MarkPeerContacted --> WaitForResponses: #inflight messages ==</br>concurrency factor
+    WaitForResponses --> ProviderRecordFound: got a response
+    WaitForResponses --> DefineQueue: new lookup</br>request
+    WaitForResponses --> SendRequest: request timed out
+    ProviderRecordFound --> AddPeersToQueue: No
+    ProviderRecordFound --> ReturnResult: Yes
+    ReturnResult --> AllRequestsAnswered
+    AllRequestsAnswered --> Wait: Yes
+    AllRequestsAnswered --> WaitForResponses: No
+
+    note left of DefineQueue
+        Maintain a list of ongoing requests
+        Each ongoing request has a peer queue
+    end note
+
+    note left of SendRequest
+        For this request, keep track of the peers
+        we have contacted, and the time
+    end note
+
+    note right of MarkPeerContacted
+        We don't want to contact the same peer twice
+        Remove from queue, but remember we are waiting for a response
+    end note
+
+    note right of ReturnResult
+        Remove request from ongoing requests list
+    end note
+```
