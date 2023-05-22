@@ -111,7 +111,6 @@ flowchart TD
     K --> R["<font size=5><b>Routing</b></font><br>FindClosestPeers()<br>GetValue()<br>FindPeer()"]
     S["<font size=5><b>Server</b></font><br>Put()<br>Get()<br>FindClosestPeers()"] --> PS
     R -.->|over network| S
-    S --> PS
     S --> RT["<font size=5><b>Routing Table</b></font><br>LocalClosestPeers()"]
     R --> RT
 ```
@@ -122,9 +121,29 @@ I.e `fullrt` only has a different `Routing Table` implementation (allowing to by
 
 `Provider Store` is responsible for storing and serving provider records, either pinned locally or remotely. It defines a specific `Provider Record` format. The design of the `Provider Store` database is left to the module implementer.
 
+**Interface**
+
+Above:
+- `PUT(key, value)`
+- `GET(key) value`
+
+Below:
+- Database scheme?
+
 ### Provider
 
 `Provider` is responsible for providing and reproviding content pinned through its interface (`StartProvide` and `StopProvide`). It writes pinned content to the `Provider Store`, and makes use of `Routing` to find the appropriate peers to allocate the provider records.
+
+**Interface**
+
+Above:
+- `StartProviding([]cid.Cid)`
+- `StopProviding([]cid.Cid)`
+- `ListProviding() []cid.Cid`
+
+Below:
+- Provider Store (to store pinned CIDs, and access the reprovide list)
+- Routing (to advertise pinned CIDs)
 
 ### Routing Table
 
@@ -155,10 +174,22 @@ Above:
 
 Below:
 - Routing Table
+- Server
 
 ### Server
 
 `Server` is responsible for handling incoming requests. For `Put` and `Get` requests it must write to and read from the `Provider Store`. For `FindClosestPeers` requests, it needs the `Routing Table`'s `LocalClosestPeers` function. Actions in `Server` are usually triggered by the `Routing` modules from another peer across the network.
+
+**Interface**
+
+Above (remote nodes requests):
+- `Put/Provide(KadId, val)`
+- `Get/GetProviders(KadId)`
+- `FindClosestPeers(KadId)`
+
+Below:
+- Routing Table (`GetClosestPeers(KadId, n)`)
+- Provider Store (for content PUT/GET requests)
 
 ### Network
 
