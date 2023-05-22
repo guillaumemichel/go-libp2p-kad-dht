@@ -111,7 +111,7 @@ flowchart TD
     K --> R["<font size=5><b>Routing</b></font><br>FindClosestPeers()<br>GetValue()<br>FindPeer()"]
     S["<font size=5><b>Server</b></font><br>Put()<br>Get()<br>FindClosestPeers()"] --> PS
     R -.->|over network| S
-    S --> R
+    S --> PS
     S --> RT["<font size=5><b>Routing Table</b></font><br>LocalClosestPeers()"]
     R --> RT
 ```
@@ -130,9 +130,31 @@ I.e `fullrt` only has a different `Routing Table` implementation (allowing to by
 
 `Routing Table` is a database of peer identities and multiaddresses. It must expose at least a `LocalClosestPeers` function returning the closest peers in XOR distance to a provided key. `Routing Table` is responsible for deciding how many peers, and which peers are recorded.
 
+**Interface**
+
+Above:
+- `TryAddPeer(peer.AddrInfo) bool` try to add a peer in the routing table
+- `RemovePeer(peer.id) bool` remove a peer from the routing table
+- `GetClosestPeers(KadId, n) []peer.id` finds the `n` closest peers from the Routing Table (local)
+
+Below:
+- add peers to libp2p peerstore (with specific TTL, and keep peers in peerstore even tough we may not be connected anymore)
+- remove peers from libp2p peerstore
+
+Note: need to check whether these operations are blocking.
 ### Routing
 
 `Routing` is a large module, responsible for finding remote peers or values in the network. It needs `Routing Table` to keep track about the identity and multiaddresses of remote peers. `Routing` performs the iterative DHT query process.
+
+**Interface**
+
+Above:
+- `FindClosestPeers(KadId, n) []peer.id` finds the `n` closest peers globally
+- `FindProviders(KadId)` lookup stops once a matching provider record is found
+- `FindValue(KadId)` essentially the same as `FindProviders(KadId)`
+
+Below:
+- Routing Table
 
 ### Server
 
