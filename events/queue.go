@@ -1,8 +1,8 @@
-package eventqueue
+package events
 
 type element struct {
 	next *element
-	data *Event
+	data interface{}
 }
 
 type Queue struct {
@@ -15,7 +15,7 @@ func New() *Queue {
 	return &Queue{}
 }
 
-func (q *Queue) Enqueue(e *Event) {
+func (q *Queue) Enqueue(e interface{}) {
 	elem := &element{data: e}
 	if q.size == 0 {
 		q.head = elem
@@ -27,7 +27,7 @@ func (q *Queue) Enqueue(e *Event) {
 	q.size++
 }
 
-func (q *Queue) Dequeue() *Event {
+func (q *Queue) Dequeue() interface{} {
 	if q.size == 0 {
 		return nil
 	}
@@ -35,6 +35,10 @@ func (q *Queue) Dequeue() *Event {
 	q.head = elem.next
 	q.size--
 	return elem.data
+}
+
+func (q *Queue) Empty() bool {
+	return q.head == nil
 }
 
 func (q *Queue) Size() uint {

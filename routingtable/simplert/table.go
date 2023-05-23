@@ -10,25 +10,23 @@ import (
 type RoutingTable interface {
 	AddPeer(peer.AddrInfo) bool
 	RemovePeer(key.KadKey) bool
-	NearestPeers(key.KadKey, int) []peer.AddrInfo
-	Find(key.KadKey) peer.AddrInfo
-
-	BucketSize() int
+	NearestPeers(key.KadKey, int) []peer.ID
+	Find(key.KadKey) peer.ID
 }
 
 type peerInfo struct {
-	id    peer.AddrInfo
+	id    peer.ID
 	kadId key.KadKey
 }
 
-type DhtRoutingTable struct {
+type SimpleRT struct {
 	self       key.KadKey
 	buckets    [][]peerInfo
 	bucketSize int
 }
 
-func NewDhtRoutingTable(self key.KadKey, bucketSize int) *DhtRoutingTable {
-	rt := DhtRoutingTable{
+func NewSimpleRT(self key.KadKey, bucketSize int) *SimpleRT {
+	rt := SimpleRT{
 		self:       self,
 		buckets:    make([][]peerInfo, 0),
 		bucketSize: bucketSize,
@@ -38,11 +36,11 @@ func NewDhtRoutingTable(self key.KadKey, bucketSize int) *DhtRoutingTable {
 	return &rt
 }
 
-func (rt *DhtRoutingTable) BucketSize() int {
+func (rt *SimpleRT) BucketSize() int {
 	return rt.bucketSize
 }
 
-func (rt *DhtRoutingTable) BucketIdForKey(kadId key.KadKey) int {
+func (rt *SimpleRT) BucketIdForKey(kadId key.KadKey) int {
 	bid := key.CommonPrefixLength(rt.self, kadId)
 	if bid >= len(rt.buckets) {
 		bid = len(rt.buckets) - 1
@@ -50,15 +48,15 @@ func (rt *DhtRoutingTable) BucketIdForKey(kadId key.KadKey) int {
 	return bid
 }
 
-func (rt *DhtRoutingTable) SizeOfBucket(bucketId int) int {
+func (rt *SimpleRT) SizeOfBucket(bucketId int) int {
 	return len(rt.buckets[bucketId])
 }
 
-func (rt *DhtRoutingTable) AddPeer(pi peer.AddrInfo) bool {
-	return rt.addPeer(key.PeerKadID(pi.ID), pi)
+func (rt *SimpleRT) AddPeer(p peer.ID) bool {
+	return rt.addPeer(key.PeerKadID(p), p)
 }
 
-func (rt *DhtRoutingTable) addPeer(kadId key.KadKey, pi peer.AddrInfo) bool {
+func (rt *SimpleRT) addPeer(kadId key.KadKey, p peer.ID) bool {
 	bid := rt.BucketIdForKey(kadId)
 
 	lastBucketId := len(rt.buckets) - 1
@@ -76,12 +74,12 @@ func (rt *DhtRoutingTable) addPeer(kadId key.KadKey, pi peer.AddrInfo) bool {
 		}
 
 		// add new peer to bucket
-		rt.buckets[bid] = append(rt.buckets[bid], peerInfo{pi, kadId})
+		rt.buckets[bid] = append(rt.buckets[bid], peerInfo{p, kadId})
 		return true
 	}
 	if len(rt.buckets[lastBucketId]) < rt.bucketSize {
 		// last bucket is not full, add new peer
-		rt.buckets[lastBucketId] = append(rt.buckets[lastBucketId], peerInfo{pi, kadId})
+		rt.buckets[lastBucketId] = append(rt.buckets[lastBucketId], peerInfo{p, kadId})
 		return true
 	}
 	// last bucket is full, try to split it
@@ -114,11 +112,11 @@ func (rt *DhtRoutingTable) addPeer(kadId key.KadKey, pi peer.AddrInfo) bool {
 
 	newBid := rt.BucketIdForKey(kadId)
 	// add new peer to appropraite bucket
-	rt.buckets[newBid] = append(rt.buckets[newBid], peerInfo{pi, kadId})
+	rt.buckets[newBid] = append(rt.buckets[newBid], peerInfo{p, kadId})
 	return true
 }
 
-func (rt *DhtRoutingTable) alreadyInBucket(kadId key.KadKey, bucketId int) bool {
+func (rt *SimpleRT) alreadyInBucket(kadId key.KadKey, bucketId int) bool {
 	for _, p := range rt.buckets[bucketId] {
 		if p.kadId == kadId {
 			return true
@@ -127,7 +125,7 @@ func (rt *DhtRoutingTable) alreadyInBucket(kadId key.KadKey, bucketId int) bool 
 	return false
 }
 
-func (rt *DhtRoutingTable) RemovePeer(kadId key.KadKey) bool {
+func (rt *SimpleRT) RemovePeer(kadId key.KadKey) bool {
 	bid := rt.BucketIdForKey(kadId)
 	for i, p := range rt.buckets[bid] {
 		if p.kadId == kadId {
@@ -141,19 +139,19 @@ func (rt *DhtRoutingTable) RemovePeer(kadId key.KadKey) bool {
 	return false
 }
 
-func (rt *DhtRoutingTable) Find(kadId key.KadKey) peer.AddrInfo {
+func (rt *SimpleRT) Find(kadId key.KadKey) peer.ID {
 	bid := rt.BucketIdForKey(kadId)
 	for _, p := range rt.buckets[bid] {
 		if p.kadId == kadId {
 			return p.id
 		}
 	}
-	return peer.AddrInfo{}
+	return peer.ID("")
 }
 
 // TODO: not exactly working as expected
 // returns min(n, bucketSize) peers from the bucket matching the given key
-func (rt *DhtRoutingTable) NearestPeers(kadId key.KadKey, n int) []peer.AddrInfo {
+func (rt *SimpleRT) NearestPeers(kadId key.KadKey, n int) []peer.ID {
 	bid := rt.BucketIdForKey(kadId)
 	peers := make([]peerInfo, len(rt.buckets[bid]))
 	copy(peers, rt.buckets[bid])
@@ -167,12 +165,12 @@ func (rt *DhtRoutingTable) NearestPeers(kadId key.KadKey, n int) []peer.AddrInfo
 		}
 		return false
 	})
-	ais := make([]peer.AddrInfo, min(n, len(peers)))
+	pids := make([]peer.ID, min(n, len(peers)))
 	for i := 0; i < min(n, len(peers)); i++ {
-		ais[i] = peers[i].id
+		pids[i] = peers[i].id
 	}
 
-	return ais
+	return pids
 }
 
 func min(a, b int) int {

@@ -34,127 +34,123 @@ var (
 
 func TestBucketSize(t *testing.T) {
 	bucketSize := 100
-	rt := NewDhtRoutingTable(key0, bucketSize)
+	rt := NewSimpleRT(key0, bucketSize)
 	require.Equal(t, bucketSize, rt.BucketSize())
 }
 
 func TestAddPeer(t *testing.T) {
 
-	dumbInfo := peer.AddrInfo{}
+	p := peer.ID("")
 
-	rt := NewDhtRoutingTable(key0, 2)
+	rt := NewSimpleRT(key0, 2)
 
 	require.Equal(t, 0, rt.SizeOfBucket(0))
 
 	// add peer CPL=1, bucket=0
-	require.True(t, rt.addPeer(key1, dumbInfo))
+	require.True(t, rt.addPeer(key1, p))
 	require.Equal(t, 1, rt.SizeOfBucket(0))
 
 	// cannot add the same peer twice
-	require.False(t, rt.addPeer(key1, dumbInfo))
+	require.False(t, rt.addPeer(key1, p))
 	require.Equal(t, 1, rt.SizeOfBucket(0))
 
 	// add peer CPL=0, bucket=0
-	require.True(t, rt.addPeer(key2, dumbInfo))
+	require.True(t, rt.addPeer(key2, p))
 	require.Equal(t, 2, rt.SizeOfBucket(0))
 
 	// add peer CPL=0, bucket=0. split of bucket0
 	// key1 goes to bucket1
-	require.True(t, rt.addPeer(key3, dumbInfo))
+	require.True(t, rt.addPeer(key3, p))
 	require.Equal(t, 2, rt.SizeOfBucket(0))
 	require.Equal(t, 1, rt.SizeOfBucket(1))
 
 	// already 2 peers with CPL = 0, so this should fail
-	require.False(t, rt.addPeer(key4, dumbInfo))
+	require.False(t, rt.addPeer(key4, p))
 	// add peer CPL=1, bucket=1
-	require.True(t, rt.addPeer(key5, dumbInfo))
+	require.True(t, rt.addPeer(key5, p))
 	require.Equal(t, 2, rt.SizeOfBucket(1))
 
 	// already 2 peers with CPL = 1, so this should fail
 	// even if bucket 1 is the last bucket
-	require.False(t, rt.addPeer(key6, dumbInfo))
+	require.False(t, rt.addPeer(key6, p))
 
 	// add two peers with CPL = 3, bucket=2
-	require.True(t, rt.addPeer(key7, dumbInfo))
-	require.True(t, rt.addPeer(key8, dumbInfo))
+	require.True(t, rt.addPeer(key7, p))
+	require.True(t, rt.addPeer(key8, p))
 	// cannot add a third peer with CPL = 3
-	require.False(t, rt.addPeer(key9, dumbInfo))
+	require.False(t, rt.addPeer(key9, p))
 
 	// add two peers with CPL = 2, bucket=2
-	require.True(t, rt.addPeer(key10, dumbInfo))
-	require.True(t, rt.addPeer(key11, dumbInfo))
+	require.True(t, rt.addPeer(key10, p))
+	require.True(t, rt.addPeer(key11, p))
 
 	// remove all peers with CPL = 0
 	rt.RemovePeer(key3)
 	rt.RemovePeer(key4)
 	// a new peer with CPL = 0 can be added
-	require.True(t, rt.AddPeer(dumbInfo))
+	require.True(t, rt.AddPeer(p))
 	// cannot add the same peer twice even tough
 	// the bucket is not full
-	require.False(t, rt.AddPeer(dumbInfo))
+	require.False(t, rt.AddPeer(p))
 }
 
 func TestRemovePeer(t *testing.T) {
-	dumbInfo := peer.AddrInfo{}
+	p := peer.ID("")
 
-	rt := NewDhtRoutingTable(key0, 2)
-	rt.addPeer(key1, dumbInfo)
+	rt := NewSimpleRT(key0, 2)
+	rt.addPeer(key1, p)
 	require.False(t, rt.RemovePeer(key2))
 	require.True(t, rt.RemovePeer(key1))
 }
 
 func TestFindPeer(t *testing.T) {
-	dumbInfo := peer.AddrInfo{ID: "QmPeer"}
+	p := peer.ID("QmPeer")
 
-	rt := NewDhtRoutingTable(key0, 2)
-	rt.addPeer(key1, dumbInfo)
-	require.Equal(t, dumbInfo.ID, rt.Find(key1).ID)
-	require.Equal(t, peer.ID(""), rt.Find(key2).ID)
+	rt := NewSimpleRT(key0, 2)
+	rt.addPeer(key1, p)
+	require.Equal(t, p, rt.Find(key1))
+	require.Equal(t, peer.ID(""), rt.Find(key2))
 	require.True(t, rt.RemovePeer(key1))
-	require.Equal(t, peer.ID(""), rt.Find(key1).ID)
+	require.Equal(t, peer.ID(""), rt.Find(key1))
 }
 
 func TestNearestPeers(t *testing.T) {
 
-	dumbInfo := make([]peer.AddrInfo, 0, 12)
+	peerIds := make([]peer.ID, 0, 12)
 	for i := 0; i < 12; i++ {
-		dumbInfo = append(dumbInfo, peer.AddrInfo{ID: peer.ID(fmt.Sprintf("QmPeer%d", i))})
+		peerIds = append(peerIds, peer.ID(fmt.Sprintf("QmPeer%d", i)))
 	}
 
 	bucketSize := 5
 
-	rt := NewDhtRoutingTable(key0, bucketSize)
-	rt.addPeer(key1, dumbInfo[1])
-	rt.addPeer(key2, dumbInfo[2])
-	rt.addPeer(key3, dumbInfo[3])
-	rt.addPeer(key4, dumbInfo[4])
-	rt.addPeer(key5, dumbInfo[5])
-	rt.addPeer(key6, dumbInfo[6])
-	rt.addPeer(key7, dumbInfo[7])
-	rt.addPeer(key8, dumbInfo[8])
-	rt.addPeer(key9, dumbInfo[9])
-	rt.addPeer(key10, dumbInfo[10])
-	rt.addPeer(key11, dumbInfo[11])
+	rt := NewSimpleRT(key0, bucketSize)
+	rt.addPeer(key1, peerIds[1])
+	rt.addPeer(key2, peerIds[2])
+	rt.addPeer(key3, peerIds[3])
+	rt.addPeer(key4, peerIds[4])
+	rt.addPeer(key5, peerIds[5])
+	rt.addPeer(key6, peerIds[6])
+	rt.addPeer(key7, peerIds[7])
+	rt.addPeer(key8, peerIds[8])
+	rt.addPeer(key9, peerIds[9])
+	rt.addPeer(key10, peerIds[10])
+	rt.addPeer(key11, peerIds[11])
 
 	// find the 2 nearest peers to key0
 	peers := rt.NearestPeers(key0, 10)
 	require.Equal(t, bucketSize, len(peers))
 
-	keys := make([]peer.ID, 0, len(peers))
-	for _, p := range peers {
-		keys = append(keys, p.ID)
-	}
-	expectedOrder := []peer.ID{dumbInfo[9].ID, dumbInfo[8].ID, dumbInfo[7].ID, dumbInfo[10].ID, dumbInfo[11].ID}
-	require.Equal(t, expectedOrder, keys)
+	expectedOrder := []peer.ID{peerIds[9], peerIds[8], peerIds[7], peerIds[10], peerIds[11]}
+	require.Equal(t, expectedOrder, peers)
 
 	peers = rt.NearestPeers(key11, 2)
 	require.Equal(t, 2, len(peers))
 
 	// create routing table with a single duplicate peer
 	// useful to test peers sorting with duplicate (even tough it should never happen)
-	rt2 := NewDhtRoutingTable(key0, 2)
-	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{dumbInfo[1], key1})
-	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{dumbInfo[1], key1})
+	rt2 := NewSimpleRT(key0, 2)
+	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{peerIds[1], key1})
+	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{peerIds[1], key1})
 	peers = rt2.NearestPeers(key0, 10)
 	require.Equal(t, peers[0], peers[1])
 }
