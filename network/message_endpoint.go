@@ -33,29 +33,29 @@ func NewMessageEndpoint(host host.Host) *MessageEndpoint {
 
 // TODO: totally change this function
 // Timeout should be handled by this function, maybe with context??
-func (msgEndpoint *MessageEndpoint) SendDhtRequest(p peer.ID, req *pb.DhtMessage, timeout time.Duration) (*pb.DhtMessage, error) {
+func (msgEndpoint *MessageEndpoint) SendDhtRequest(p peer.ID, req *pb.Message, timeout time.Duration) error {
 	ctx := context.Background()                                           // TODO: figure out context
 	s, err := msgEndpoint.Host.NewStream(ctx, p, "/dummy/protocol/1.0.0") // TODO: update protocol
 	if err != nil {
 		fmt.Println("stream creation error")
-		return nil, err
+		return err
 	}
 	defer s.Close()
 
 	err = WriteMsg(s, req)
 	if err != nil {
 		fmt.Println("error writing message")
-		return nil, err
+		return err
 	}
 
-	resp := &pb.DhtMessage{}
+	resp := &pb.Message{}
 	err = ReadMsg(s, resp)
 	if err != nil {
 		fmt.Println("error reading message")
-		return nil, err
+		return err
 	}
 
-	return resp, nil
+	return nil
 }
 
 func WriteMsg(s network.Stream, msg protoreflect.ProtoMessage) error {

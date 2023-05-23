@@ -1,8 +1,45 @@
 syntax = "proto3";
+package dht.pb;
 
 option go_package = "./pb";
 
-message Peer {
+// Record represents a dht record that contains a value
+// for a key value pair
+message Record {
+  // The key that references this record
+  bytes key = 1;
+
+  // The actual value this record is storing
+  bytes value = 2;
+
+  // Note: These fields were removed from the Record message
+  // hash of the authors public key
+  // optional string author = 3;
+  // A PKI signature for the key+value+author
+  // optional bytes signature = 4;
+
+  // Time the record was received, set by receiver
+  string timeReceived = 5;
+
+  // The original publisher of the record
+  // Not used at the moment, but may be useful for future developments
+  bytes publisher = 666;
+
+  // The remaining TTL of the record, in seconds
+  // Not used at the moment, but may be useful for future developments
+  uint32 ttl = 777;
+};
+
+message Message {
+  enum MessageType {
+    PUT_VALUE = 0;
+    GET_VALUE = 1;
+    ADD_PROVIDER = 2;
+    GET_PROVIDERS = 3;
+    FIND_NODE = 4;
+    PING = 5;
+  }
+
   enum ConnectionType {
     // sender does not have a connection to peer, and no extra information
     // (default)
@@ -14,73 +51,43 @@ message Peer {
     // sender recently connected to peer
     CAN_CONNECT = 2;
 
-    // sender recently tried to connect to peer repeatedly but failed to
-    // connect
+    // sender recently tried to connect to peer repeatedly but failed to connect
     // ("try" here is loose, but this should signal "made strong effort,
     // failed")
     CANNOT_CONNECT = 3;
   }
 
-  string PeerId = 1; // peer.ID
-  repeated bytes addrs = 2;
-  ConnectionType connectionType = 3;
-}
-
-message DhtFindPeerRequest {
-  bytes KadId = 1; // KadId
-}
-
-message DhtFindPeerResponse { repeated Peer Peers = 1; }
-
-message EncPeerId {
-  bytes EncPeerIdFormatVarint = 1;
-  bytes Nonce = 2;
-  bytes Payload = 3;
-}
-
-message DhtProvideRequest {
-  bytes ID = 1;
-  bytes ServerKey = 2;
-  EncPeerId EncPeerId = 3;
-  bytes Signature = 4;
-}
-
-message DhtProvideResponse {
-  enum status {
-    OK = 0;
-    ERROR = 1;
-  }
-  status Status = 1;
-}
-
-message DhtLookupRequest { bytes Prefix = 1; }
-
-message DhtLookupResponse {
-
-  message ProviderRecord {
-    bytes FormatVarint = 1;
-    EncPeerId EncPeerId = 2;
-    bytes ServerNonce = 3;
-    bytes EncMetadata = 4;
-  }
-  message AggregatedProviderRecords {
+  message Peer {
+    // ID of a given peer.
     bytes id = 1;
-    repeated ProviderRecord ProviderRecords = 2;
+
+    // multiaddrs for a given peer
+    repeated bytes addrs = 2;
+
+    // used to signal the sender's connection capabilities to the peer
+    ConnectionType connection = 3;
   }
 
-  bytes DhtLookupResponseFormatVarint = 1;
-  bytes Flag = 2;
-  repeated Peer Peers = 3;
-  repeated AggregatedProviderRecords ProviderRecords = 4;
-}
+  // defines what type of message it is
+  MessageType type = 1;
 
-message DhtMessage {
-  oneof MessageType {
-    DhtFindPeerRequest FindPeerRequestType = 1;
-    DhtFindPeerResponse FindPeerResponseType = 2;
-    DhtProvideRequest ProvideRequestType = 3;
-    DhtProvideResponse ProvideResponseType = 4;
-    DhtLookupRequest LookupRequestType = 5;
-    DhtLookupResponse LookupResponseType = 6;
-  }
+  // defines what coral cluster level this query/response belongs to
+  // in case we want to implement coral's cluster rings in the future
+  int32 clusterLevelRaw = 10; // NOT USED
+
+  // Used to specify the key associated with this message
+  // PUT_VALUE, GET_VALUE, ADD_PROVIDER, GET_PROVIDERS
+  bytes key = 2;
+
+  // Used to return a value
+  // PUT_VALUE, GET_VALUE
+  Record record = 3;
+
+  // Used to return peers closer to a key in a query
+  // GET_VALUE, GET_PROVIDERS, FIND_NODE
+  repeated Peer closerPeers = 8;
+
+  // Used to return Providers
+  // GET_VALUE, ADD_PROVIDER, GET_PROVIDERS
+  repeated Peer providerPeers = 9;
 }
