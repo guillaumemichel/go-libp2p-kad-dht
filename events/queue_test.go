@@ -12,7 +12,7 @@ func TestQueue(t *testing.T) {
 	for i := 0; i < nEvents; i++ {
 		events[i] = &Event{}
 	}
-	q := New()
+	q := NewQueue()
 	if q.Size() != 0 {
 		t.Errorf("Expected size 0, got %d", q.Size())
 	}

@@ -11,25 +11,19 @@ import (
 )
 
 func (s *Server) DefaultStreamHandler(stream net.Stream) {
-	for {
-		req := &pb.Message{}
-		err := network.ReadMsg(stream, req)
-		if err != nil {
-			if err == io.EOF {
-				return
-			}
-			fmt.Println("error reading message:", err)
-			stream.Reset()
+	req := &pb.Message{}
+	err := network.ReadMsg(stream, req)
+	if err != nil {
+		if err == io.EOF {
 			return
 		}
 
-		// TODO: improve this
-		event := struct {
-			*pb.Message
-			net.Stream
-		}{req, stream}
-
-		events.NewEvent(s.em, event)
-
+		fmt.Println("error reading message:", err)
+		stream.Reset()
+		return
 	}
+	events.NewEvent(s.em, func() error {
+		return HandleRequest(s, req, stream)
+	})
+
 }

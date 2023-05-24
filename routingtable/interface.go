@@ -6,7 +6,7 @@ import (
 )
 
 type RoutingTable interface {
-	AddPeer(peer.AddrInfo) bool
+	AddPeer(peer.ID) bool
 	RemovePeer(key.KadKey) bool
 	NearestPeers(key.KadKey, int) []peer.ID
 }

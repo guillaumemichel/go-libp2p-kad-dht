@@ -20,13 +20,18 @@ import "sync"
 // 6. IO Timeout: the node failed to do some IO in time
 
 type Event struct {
+	F func()
 }
 
 type EventsManager struct {
 	lock   sync.Mutex
 	active bool
 
-	queue Queue
+	queue *Queue
+}
+
+func NewEventsManager() *EventsManager {
+	return &EventsManager{queue: NewQueue()}
 }
 
 func NewEvent(em *EventsManager, e interface{}) {
@@ -61,7 +66,9 @@ func NewEvent(em *EventsManager, e interface{}) {
 }
 
 func handleEvent(e interface{}) {
-	switch e.(type) {
+	switch e := e.(type) {
+	case func() error:
+		e()
 	case *Event:
 	default:
 		panic("unknown event type") // TODO: handle this

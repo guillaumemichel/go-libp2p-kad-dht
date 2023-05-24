@@ -15,7 +15,15 @@ type Server struct {
 	em           *events.EventsManager
 }
 
-func HandleRequest(s Server, req *pb.Message, stream network.Stream) error {
+func NewServer(h host.Host, rt rt.RoutingTable, em *events.EventsManager) *Server {
+	return &Server{
+		RoutingTable: rt,
+		host:         h,
+		em:           em,
+	}
+}
+
+func HandleRequest(s *Server, req *pb.Message, stream network.Stream) error {
 
 	switch req.GetType() {
 	case pb.Message_FIND_NODE:
@@ -24,10 +32,11 @@ func HandleRequest(s Server, req *pb.Message, stream network.Stream) error {
 	}
 
 	// TODO: check if remote peer is in server mode. If yes, add them to the routing table
+	// if they are in client mode, add them to the table
 
 	return nil
 }
 
-func SetStreamHandler(s Server, handler func(network.Stream), proto protocol.ID) {
+func SetStreamHandler(s *Server, handler func(network.Stream), proto protocol.ID) {
 	s.host.SetStreamHandler(proto, handler)
 }

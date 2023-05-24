@@ -11,7 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-func HandleFindNodeRequest(s Server, req *pb.Message, stream net.Stream) error {
+func HandleFindNodeRequest(s *Server, req *pb.Message, stream net.Stream) error {
 
 	p := peer.ID(req.GetKey())
 
