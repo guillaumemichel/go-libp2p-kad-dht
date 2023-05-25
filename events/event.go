@@ -1,6 +1,11 @@
 package events
 
-import "sync"
+import (
+	"context"
+	"sync"
+
+	"github.com/libp2p/go-libp2p-kad-dht/internal"
+)
 
 // types of Events:
 // 1. Client Request
@@ -26,6 +31,7 @@ type Event struct {
 type EventsManager struct {
 	lock   sync.Mutex
 	active bool
+	done   bool
 
 	queue *Queue
 }
@@ -34,11 +40,15 @@ func NewEventsManager() *EventsManager {
 	return &EventsManager{queue: NewQueue()}
 }
 
-func NewEvent(em *EventsManager, e interface{}) {
+func NewEvent(ctx context.Context, em *EventsManager, e interface{}) {
 	em.lock.Lock()
 	// check if there is an active thread handling events
 	if em.active {
 		em.lock.Unlock()
+
+		_, span := internal.StartSpan(ctx, "events.NewEvent queued")
+		defer span.End()
+
 		// if a thread is already handling events, enqueue the new event
 		em.queue.Enqueue(e)
 		return
@@ -48,15 +58,15 @@ func NewEvent(em *EventsManager, e interface{}) {
 	em.lock.Unlock()
 
 	// handle the new event
-	handleEvent(e)
+	handleEvent(ctx, e)
 
 	// if new events were enqueued while this thread was active, handle them
 	em.lock.Lock()
-	for !em.queue.Empty() {
+	for !em.queue.Empty() && !em.done {
 		em.lock.Unlock()
 
 		e := em.queue.Dequeue()
-		handleEvent(e)
+		handleEvent(ctx, e)
 
 		em.lock.Lock()
 	}
@@ -65,10 +75,20 @@ func NewEvent(em *EventsManager, e interface{}) {
 	em.lock.Unlock()
 }
 
-func handleEvent(e interface{}) {
+// StopEventManager stops the event manager from handling events
+func StopEventManager(ctx context.Context, em *EventsManager) {
+	_, span := internal.StartSpan(ctx, "events.StopEventManager")
+	defer span.End()
+
+	em.lock.Lock()
+	em.done = true
+	em.lock.Unlock()
+}
+
+func handleEvent(ctx context.Context, e interface{}) {
 	switch e := e.(type) {
-	case func() error:
-		e()
+	case func(ctx context.Context):
+		e(ctx)
 	case *Event:
 	default:
 		panic("unknown event type") // TODO: handle this

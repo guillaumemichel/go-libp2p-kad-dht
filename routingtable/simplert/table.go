@@ -1,18 +1,24 @@
 package simplert
 
 import (
+	"context"
 	"sort"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
+/*
 type RoutingTable interface {
 	AddPeer(peer.AddrInfo) bool
 	RemovePeer(key.KadKey) bool
 	NearestPeers(key.KadKey, int) []peer.ID
 	Find(key.KadKey) peer.ID
 }
+*/
 
 type peerInfo struct {
 	id    peer.ID
@@ -52,11 +58,17 @@ func (rt *SimpleRT) SizeOfBucket(bucketId int) int {
 	return len(rt.buckets[bucketId])
 }
 
-func (rt *SimpleRT) AddPeer(p peer.ID) bool {
-	return rt.addPeer(key.PeerKadID(p), p)
+func (rt *SimpleRT) AddPeer(ctx context.Context, p peer.ID) bool {
+	return rt.addPeer(ctx, key.PeerKadID(p), p)
 }
 
-func (rt *SimpleRT) addPeer(kadId key.KadKey, p peer.ID) bool {
+func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bool {
+	_, span := internal.StartSpan(ctx, "simplert.addPeer", trace.WithAttributes(
+		attribute.String("KadID", kadId.Hex()),
+		attribute.Stringer("PeerID", p),
+	))
+	defer span.End()
+
 	bid := rt.BucketIdForKey(kadId)
 
 	lastBucketId := len(rt.buckets) - 1
@@ -125,7 +137,7 @@ func (rt *SimpleRT) alreadyInBucket(kadId key.KadKey, bucketId int) bool {
 	return false
 }
 
-func (rt *SimpleRT) RemovePeer(kadId key.KadKey) bool {
+func (rt *SimpleRT) RemovePeer(ctx context.Context, kadId key.KadKey) bool {
 	bid := rt.BucketIdForKey(kadId)
 	for i, p := range rt.buckets[bid] {
 		if p.kadId == kadId {
@@ -151,7 +163,7 @@ func (rt *SimpleRT) Find(kadId key.KadKey) peer.ID {
 
 // TODO: not exactly working as expected
 // returns min(n, bucketSize) peers from the bucket matching the given key
-func (rt *SimpleRT) NearestPeers(kadId key.KadKey, n int) []peer.ID {
+func (rt *SimpleRT) NearestPeers(ctx context.Context, kadId key.KadKey, n int) []peer.ID {
 	bid := rt.BucketIdForKey(kadId)
 	peers := make([]peerInfo, len(rt.buckets[bid]))
 	copy(peers, rt.buckets[bid])

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -22,8 +23,8 @@ func (s *Server) DefaultStreamHandler(stream net.Stream) {
 		stream.Reset()
 		return
 	}
-	events.NewEvent(s.em, func() error {
-		return HandleRequest(s, req, stream)
+	events.NewEvent(s.ctx, s.em, func(ctx context.Context) {
+		HandleRequest(ctx, s, req, stream)
 	})
 
 }

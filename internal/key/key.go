@@ -25,10 +25,6 @@ var (
 	ZeroKey = KadKey{}
 )
 
-func HexKadID(kadid KadKey) string {
-	return hex.EncodeToString(kadid[:])
-}
-
 func PeerKadID(p peer.ID) KadKey {
 	return StringKadID(string(p))
 }
@@ -38,6 +34,14 @@ func StringKadID(s string) KadKey {
 	hasher, _ := mhreg.GetHasher(HasherID)
 	hasher.Write([]byte(s))
 	return KadKey(hasher.Sum(nil))
+}
+
+func (k KadKey) Hex() string {
+	return hex.EncodeToString(k[:])
+}
+
+func (k KadKey) String() string {
+	return k.Hex()
 }
 
 func (k KadKey) Xor(other KadKey) KadKey {
