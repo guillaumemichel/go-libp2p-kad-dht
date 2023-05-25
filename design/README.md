@@ -31,6 +31,15 @@ Author: [Guillaume Michel](https://github.com/guillaumemichel)
 
 ## State Machines
 
+### Event Loop
+
+![alt text](excalidraw/event-loop.png)
+
+### Query Process
+
+![alt text](excalidraw/query-process.png)
+
+
 ### Single Thread Non Blocking High Level State Machine
 
 Even though the Kademlia implementation is single threaded, its callers may not be single threaded. Moreover, in the go-libp2p implementation, when a request is sent (by the Kademlia implementation) a new go routine is created and waits for a reply. Hence, it will be a go routine that resumes execution after a response is received. It may necessary to resume execution for IO, because Provider Records may be stored in blocking databases. The goal is to have at most one thread doing Kademlia operations at a time.
