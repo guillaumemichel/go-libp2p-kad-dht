@@ -21,6 +21,10 @@ func RemovePeer(ctx context.Context, rt RoutingTable, k key.KadKey) bool {
 	return rt.RemovePeer(ctx, k)
 }
 
+func RemovePeerID(ctx context.Context, rt RoutingTable, p peer.ID) bool {
+	return RemovePeer(ctx, rt, key.PeerKadID(p))
+}
+
 func NearestPeers(ctx context.Context, rt RoutingTable, k key.KadKey, n int) []peer.ID {
 	return rt.NearestPeers(ctx, k, n)
 }

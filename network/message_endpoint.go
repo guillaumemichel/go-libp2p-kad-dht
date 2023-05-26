@@ -58,6 +58,10 @@ func (msgEndpoint *MessageEndpoint) SendDhtRequest(p peer.ID, req *pb.Message, t
 	return nil
 }
 
+func SendRequest(ctx context.Context, me *MessageEndpoint, req *pb.Message, timeout time.Duration) error {
+	return nil
+}
+
 func WriteMsg(s network.Stream, msg protoreflect.ProtoMessage) error {
 	w := pbio.NewDelimitedWriter(s)
 	return w.WriteMsg(msg)

@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
@@ -25,7 +24,6 @@ func HandleFindNodeRequest(ctx context.Context, s *Server, req *pb.Message, stre
 	if err != nil {
 		return err
 	}
-	fmt.Println(p)
 
 	_, span := internal.StartSpan(ctx, "server.HandleFindNodeRequest", trace.WithAttributes(
 		attribute.Stringer("Requester", stream.Conn().RemotePeer()),

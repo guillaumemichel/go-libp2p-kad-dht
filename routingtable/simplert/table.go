@@ -3,6 +3,7 @@ package simplert
 import (
 	"context"
 	"sort"
+	"strconv"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
@@ -74,6 +75,7 @@ func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bo
 	lastBucketId := len(rt.buckets) - 1
 
 	if rt.alreadyInBucket(kadId, bid) {
+		span.AddEvent("peer not added, already in bucket " + strconv.Itoa(bid))
 		// discard new peer
 		return false
 	}
@@ -81,17 +83,20 @@ func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bo
 	if bid < lastBucketId {
 		// new peer doesn't belong in last bucket
 		if len(rt.buckets[bid]) >= rt.bucketSize {
+			span.AddEvent("peer not added, bucket " + strconv.Itoa(bid) + " full")
 			// bucket is full, discard new peer
 			return false
 		}
 
 		// add new peer to bucket
 		rt.buckets[bid] = append(rt.buckets[bid], peerInfo{p, kadId})
+		span.AddEvent("peer added to bucket " + strconv.Itoa(bid))
 		return true
 	}
 	if len(rt.buckets[lastBucketId]) < rt.bucketSize {
 		// last bucket is not full, add new peer
 		rt.buckets[lastBucketId] = append(rt.buckets[lastBucketId], peerInfo{p, kadId})
+		span.AddEvent("peer added to bucket " + strconv.Itoa(lastBucketId))
 		return true
 	}
 	// last bucket is full, try to split it
@@ -101,11 +106,15 @@ func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bo
 		// closeBucket contains peers with a CPL higher than lastBucketId
 		closeBucket := make([]peerInfo, 0)
 
+		span.AddEvent("splitting last bucket (" + strconv.Itoa(lastBucketId) + ")")
+
 		for _, p := range rt.buckets[lastBucketId] {
 			if key.CommonPrefixLength(p.kadId, rt.self) == lastBucketId {
 				farBucket = append(farBucket, p)
 			} else {
 				closeBucket = append(closeBucket, p)
+				span.AddEvent(p.id.String() + " moved to new bucket (" +
+					strconv.Itoa(lastBucketId+1) + ")")
 			}
 		}
 		if len(farBucket) == rt.bucketSize &&
@@ -125,6 +134,7 @@ func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bo
 	newBid := rt.BucketIdForKey(kadId)
 	// add new peer to appropraite bucket
 	rt.buckets[newBid] = append(rt.buckets[newBid], peerInfo{p, kadId})
+	span.AddEvent("peer added to bucket " + strconv.Itoa(newBid))
 	return true
 }
 
@@ -138,16 +148,24 @@ func (rt *SimpleRT) alreadyInBucket(kadId key.KadKey, bucketId int) bool {
 }
 
 func (rt *SimpleRT) RemovePeer(ctx context.Context, kadId key.KadKey) bool {
+	_, span := internal.StartSpan(ctx, "simplert.removePeer", trace.WithAttributes(
+		attribute.String("KadID", kadId.Hex()),
+	))
+	defer span.End()
+
 	bid := rt.BucketIdForKey(kadId)
 	for i, p := range rt.buckets[bid] {
 		if p.kadId == kadId {
 			// remove peer from bucket
 			rt.buckets[bid][i] = rt.buckets[bid][len(rt.buckets[bid])-1]
 			rt.buckets[bid] = rt.buckets[bid][:len(rt.buckets[bid])-1]
+
+			span.AddEvent(p.id.String() + " removed from bucket " + strconv.Itoa(bid))
 			return true
 		}
 	}
 	// peer not found in the routing table
+	span.AddEvent("peer not found in bucket " + strconv.Itoa(bid))
 	return false
 }
 

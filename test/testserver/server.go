@@ -88,7 +88,6 @@ func client(ctx context.Context, serv peer.AddrInfo) {
 		panic(err)
 	}
 
-	fmt.Println("we got a response!")
 	peers := msg.GetCloserPeers()
 
 	peerid := peer.ID("")
