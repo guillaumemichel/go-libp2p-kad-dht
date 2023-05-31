@@ -44,10 +44,10 @@ func (k KadKey) String() string {
 	return k.Hex()
 }
 
-func (k KadKey) Xor(other KadKey) KadKey {
+func Xor(a, b KadKey) KadKey {
 	var xored KadKey
 	for i := 0; i < Keysize; i++ {
-		xored[i] = k[i] ^ other[i]
+		xored[i] = a[i] ^ b[i]
 	}
 	return xored
 }
@@ -64,12 +64,13 @@ func CommonPrefixLength(a, b KadKey) int {
 
 }
 
-func (k KadKey) Compare(other KadKey) int {
+// Compare returns -1 if a < b, 0 if a == b, and 1 if a > b
+func Compare(a, b KadKey) int {
 	for i := 0; i < Keysize; i++ {
-		if k[i] < other[i] {
+		if a[i] < b[i] {
 			return -1
 		}
-		if k[i] > other[i] {
+		if a[i] > b[i] {
 			return 1
 		}
 	}
