@@ -27,8 +27,8 @@ var (
 
 func ServerTest(ctx context.Context) {
 	newCtx, span := internal.StartSpan(ctx, "ServerTest")
-	pi := serv(newCtx)
-	client(newCtx, pi)
+	ai := serv(newCtx)
+	client(newCtx, ai)
 	span.End()
 }
 

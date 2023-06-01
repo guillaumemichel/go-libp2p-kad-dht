@@ -182,9 +182,30 @@ func (rt *SimpleRT) Find(kadId key.KadKey) peer.ID {
 // TODO: not exactly working as expected
 // returns min(n, bucketSize) peers from the bucket matching the given key
 func (rt *SimpleRT) NearestPeers(ctx context.Context, kadId key.KadKey, n int) []peer.ID {
+	_, span := internal.StartSpan(ctx, "simplert.nearestPeers", trace.WithAttributes(
+		attribute.String("KadID", kadId.Hex()),
+		attribute.Int("n", n),
+	))
+	defer span.End()
+
 	bid := rt.BucketIdForKey(kadId)
-	peers := make([]peerInfo, len(rt.buckets[bid]))
-	copy(peers, rt.buckets[bid])
+
+	var peers []peerInfo
+	// TODO: optimize this
+	if len(rt.buckets[bid]) == n {
+		peers = make([]peerInfo, len(rt.buckets[bid]))
+		copy(peers, rt.buckets[bid])
+	} else {
+		peers = make([]peerInfo, 0)
+		for i := 0; i < len(rt.buckets); i++ {
+			for _, p := range rt.buckets[i] {
+				if p.kadId != rt.self {
+					peers = append(peers, p)
+				}
+			}
+		}
+	}
+
 	sort.SliceStable(peers, func(i, j int) bool {
 		for k := 0; k < key.Keysize; k++ {
 			distI := peers[i].kadId[k] ^ kadId[k]

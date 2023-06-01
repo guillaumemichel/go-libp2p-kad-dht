@@ -26,7 +26,14 @@ type timedAction struct {
 	next   *timedAction
 }
 
-func ScheduleAction(ctx context.Context, sched *Scheduler, a interface{}, t time.Time) {
+func NewScheduler(clk clock.Clock) *Scheduler {
+	return &Scheduler{
+		Clock: clk,
+	}
+}
+
+func ScheduleAction(ctx context.Context, sched *Scheduler, d time.Duration, a interface{}) {
+	t := sched.Clock.Now().Add(d)
 	if sched.NextAction == nil {
 		sched.NextAction = &timedAction{action: a, time: t}
 		return

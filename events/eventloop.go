@@ -3,11 +3,15 @@ package events
 import (
 	"context"
 	"fmt"
+
+	eq "github.com/libp2p/go-libp2p-kad-dht/events/eventqueue"
 )
 
-func Run(ctx context.Context, sched *Scheduler, newEvents chan interface{}) {
+func Run(ctx context.Context, sched *Scheduler, queue eq.EventQueue) {
 	alarm := RunOverdueActions(ctx, sched)
 	timer := sched.Clock.Timer(sched.Clock.Until(alarm))
+
+	newsChan := eq.NewsChan(queue)
 	for {
 		select {
 		case <-ctx.Done():
@@ -15,10 +19,13 @@ func Run(ctx context.Context, sched *Scheduler, newEvents chan interface{}) {
 		case <-timer.C:
 			alarm = RunOverdueActions(ctx, sched)
 			timer = sched.Clock.Timer(sched.Clock.Until(alarm))
-		case event := <-newEvents:
+		case <-newsChan:
+			event := eq.Dequeue(queue)
 			switch e := event.(type) {
 			case func(context.Context):
 				e(ctx)
+			case func():
+				e()
 			default:
 				fmt.Println("Unknown event type")
 			}
@@ -28,13 +35,15 @@ func Run(ctx context.Context, sched *Scheduler, newEvents chan interface{}) {
 	}
 }
 
-func EmptyQueue(ctx context.Context, q *Queue) {
-	for !q.Empty() {
+func EmptyQueue(ctx context.Context, q eq.EventQueue) {
+	for !eq.Empty(q) {
 		event := q.Dequeue()
 
 		switch e := event.(type) {
 		case func(context.Context):
 			e(ctx)
+		case func():
+			e()
 		default:
 			fmt.Println("Unknown event type")
 		}

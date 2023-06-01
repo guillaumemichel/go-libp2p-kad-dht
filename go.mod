@@ -3,6 +3,7 @@ module github.com/libp2p/go-libp2p-kad-dht
 go 1.20
 
 require (
+	github.com/benbjohnson/clock v1.3.0
 	github.com/ipfs/go-cid v0.4.1
 	github.com/libp2p/go-libp2p v0.27.3
 	github.com/libp2p/go-msgio v0.3.0
@@ -19,7 +20,6 @@ require (
 )
 
 require (
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/cgroups v1.1.0 // indirect

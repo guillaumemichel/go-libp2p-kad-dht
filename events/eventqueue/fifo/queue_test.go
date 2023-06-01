@@ -1,4 +1,4 @@
-package events
+package fifo
 
 import (
 	"testing"
@@ -8,9 +8,9 @@ import (
 
 func TestQueue(t *testing.T) {
 	nEvents := 10
-	events := make([]*Event, nEvents)
+	events := make([]int, nEvents)
 	for i := 0; i < nEvents; i++ {
-		events[i] = &Event{}
+		events[i] = i
 	}
 	q := NewQueue()
 	if q.Size() != 0 {
@@ -29,6 +29,10 @@ func TestQueue(t *testing.T) {
 		t.Errorf("Expected size 2, got %d", q.Size())
 	}
 	require.False(t, q.Empty())
+
+	newsChan := q.NewsChan()
+	require.NotNil(t, newsChan)
+	<-newsChan
 
 	e := q.Dequeue()
 	require.Equal(t, e, events[0])
@@ -50,4 +54,6 @@ func TestQueue(t *testing.T) {
 		t.Errorf("Expected size 0, got %d", q.Size())
 	}
 	require.True(t, q.Empty())
+
+	q.Close()
 }

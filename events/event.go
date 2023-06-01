@@ -4,6 +4,9 @@ import (
 	"context"
 	"sync"
 
+	eq "github.com/libp2p/go-libp2p-kad-dht/events/eventqueue"
+	"github.com/libp2p/go-libp2p-kad-dht/events/eventqueue/fifo"
+
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 )
 
@@ -33,11 +36,11 @@ type EventsManager struct {
 	active bool
 	done   bool
 
-	queue *Queue
+	queue eq.EventQueue
 }
 
 func NewEventsManager() *EventsManager {
-	return &EventsManager{queue: NewQueue()}
+	return &EventsManager{queue: fifo.NewQueue()}
 }
 
 func NewEvent(ctx context.Context, em *EventsManager, e interface{}) {
@@ -62,7 +65,7 @@ func NewEvent(ctx context.Context, em *EventsManager, e interface{}) {
 
 	// if new events were enqueued while this thread was active, handle them
 	em.lock.Lock()
-	for !em.queue.Empty() && !em.done {
+	for !eq.Empty(em.queue) && !em.done {
 		em.lock.Unlock()
 
 		e := em.queue.Dequeue()

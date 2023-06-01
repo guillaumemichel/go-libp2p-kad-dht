@@ -1,4 +1,4 @@
-package events
+package fifo
 
 import "sync"
 
@@ -12,10 +12,14 @@ type Queue struct {
 	tail *element
 	size uint
 	lock sync.RWMutex
+
+	newsChan chan struct{}
 }
 
 func NewQueue() *Queue {
-	return &Queue{}
+	return &Queue{
+		newsChan: make(chan struct{}, 1),
+	}
 }
 
 func (q *Queue) Enqueue(e interface{}) {
@@ -31,6 +35,11 @@ func (q *Queue) Enqueue(e interface{}) {
 		q.tail = elem
 	}
 	q.size++
+
+	select {
+	case q.newsChan <- struct{}{}:
+	default:
+	}
 }
 
 func (q *Queue) Dequeue() interface{} {
@@ -58,4 +67,19 @@ func (q *Queue) Size() uint {
 	defer q.lock.RUnlock()
 
 	return q.size
+}
+
+func (q *Queue) NewsChan() <-chan struct{} {
+	return q.newsChan
+}
+
+func (q *Queue) Close() {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	q.head = nil
+	q.tail = nil
+	q.size = 0
+
+	close(q.newsChan)
 }
