@@ -41,7 +41,7 @@ The lookup implementation should be the same for all RPCs. The termination condi
 
 - when a response is picked up by the worker
 - remove timeout from scheduler
-- if response fulfills the success condition, report answer (and close query) -> this step must be specific for each kind of request
+- if response fulfills the success condition, report answer (and close query) -> this step must be specific for each kind of request -- RPC SPECIFIC FOLLOW-UP?
 - change the peer status from "waiting" to "queried"
 - try to add peer to rt and peerstore
 - add (all) closer peers to the peer list (we don't want duplicates though), status "queued"
@@ -64,6 +64,13 @@ The lookup implementation should be the same for all RPCs. The termination condi
 - if the list only contains the initial 20 peers from the routing table, increase the number of closest peers in the routing table, until one remote peer responds with a closer peer or until the whole routing table is in the query and is unresponsive.
 - if remote peers have answered the query, return an error: "content not found"
 - in specific conditions where a quorum is required, return an answer with a warning that the quorum wasn't reached
+
+customs functions as parameters
+- StopFn(Query): decide when to stop
+- SaveUsefulState(Query): save useful responses. Can also add prioritary event to try to connect to peer
+- FollowUpFn(Query): for `FIND_PEER`, once an answer is received, if it contains the peer.AddrInfo of the target peer
+
+- following the follow up (if any)
 
 ## To explore
 

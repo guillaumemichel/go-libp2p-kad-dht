@@ -16,6 +16,8 @@ List of priority in order (without numbers so that it is easier to insert new ev
 
 - ctx cancel
 - IO (read from provider store)
+- query cancel
+- server requests (from remote peers)
 - handle response to sent requests
 - sending the first messages of a query (first in terms of concurrency)
 - new client requests (find/provide)

@@ -10,3 +10,10 @@ type Routing interface {
 
 	NClosestPeers() int
 }
+
+type Query interface {
+}
+
+func FindPeer(q Query, p peer.ID) {
+
+}

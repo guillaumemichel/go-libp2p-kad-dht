@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network"
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/query"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
@@ -37,8 +38,47 @@ var (
 
 func lookupTest(ctx context.Context) {
 	ai := serv(ctx)
+	client1(ctx, ai)
+}
 
-	ctx, span := internal.StartSpan(ctx, "simplequerytest.lookupTest")
+func client1(ctx context.Context, ai peer.AddrInfo) {
+	ctx, span := internal.StartSpan(ctx, "simplequerytest.client1")
+	defer span.End()
+
+	h, err := util.Libp2pHost(ctx, "9999")
+	if err != nil {
+		panic(err)
+	}
+	rt := simplert.NewSimpleRT(key.PeerKadID(h.ID()), 20)
+	msgEndpoint := network.NewMessageEndpoint(h)
+
+	ai.Addrs = []multiaddr.Multiaddr{multiaddr.StringCast("/ip4/0.0.0.0/tcp/8888")}
+	h.Connect(ctx, ai)
+	if !rt.AddPeer(ctx, ai.ID) {
+		log.Println("failed to add peer")
+	}
+	sched := events.NewScheduler(clock.NewMock())
+	eventqueue := chanqueue.NewChanQueue(1000)
+	go events.Run(ctx, sched, eventqueue)
+
+	sr, err := simplerouting.NewSimpleRouting(msgEndpoint, rt, eventqueue, *sched)
+	if err != nil {
+		panic(err)
+	}
+
+	_, bin, _ := multibase.Decode(targetBytesID)
+	p := peer.ID(bin)
+
+	res, err := sr.FindPeer(ctx, p)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("result:", res)
+
+}
+
+func client0(ctx context.Context, ai peer.AddrInfo) {
+	ctx, span := internal.StartSpan(ctx, "simplequerytest.client0")
 	defer span.End()
 
 	h, err := util.Libp2pHost(ctx, "9999")
@@ -68,14 +108,14 @@ func lookupTest(ctx context.Context) {
 	go events.Run(ctx, sched, eventqueue)
 
 	resultChan := make(chan interface{}, 10)
-	successFnc := func(ctx context.Context, tmp []interface{}, resp *pb.Message, resultChan chan interface{}) (bool, []interface{}) {
+	successFnc := func(ctx context.Context, tmp []interface{}, resp *pb.Message, resultChan chan interface{}) []interface{} {
 		if len(resp.CloserPeers) > 0 {
 			resultChan <- "success"
-			return true, tmp
+			return tmp
 		}
-		return false, tmp
+		return tmp
 	}
-	sq.NewSimpleQuery(ctx, key.PeerKadID(p), msg, 1, time.Second, consts.ProtocolDHT, h, msgEndpoint, rt, eventqueue, *sched, resultChan, successFnc)
+	sq.NewSimpleQuery(ctx, key.PeerKadID(p), msg, 1, time.Second, consts.ProtocolDHT, msgEndpoint, rt, eventqueue, *sched, resultChan, successFnc)
 
 	res := <-resultChan
 	switch r := res.(type) {

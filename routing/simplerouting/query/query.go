@@ -13,7 +13,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network"
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
-	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -31,6 +30,8 @@ var (
 	QueuedPeersPeerstoreTTL = peerstore.TempAddrTTL
 )
 
+type HandleResultFn func(context.Context, []interface{}, *pb.Message, chan interface{}) []interface{}
+
 type SimpleQuery struct {
 	ctx         context.Context
 	done        bool
@@ -40,7 +41,6 @@ type SimpleQuery struct {
 	timeout     time.Duration
 	proto       protocol.ID
 
-	host        host.Host // TODO: for now only peerstore required
 	msgEndpoint *network.MessageEndpoint
 	rt          routingtable.RoutingTable
 
@@ -50,17 +50,16 @@ type SimpleQuery struct {
 	peerlist *peerList
 
 	// success condition
-	interestingElements []interface{}
-	resultsChan         chan interface{}
-	testSuccess         func(context.Context, []interface{}, *pb.Message, chan interface{}) (bool, []interface{})
+	state          []interface{}
+	resultsChan    chan interface{}
+	handleResultFn HandleResultFn
 }
 
 func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
-	concurrency int, timeout time.Duration, proto protocol.ID, h host.Host,
+	concurrency int, timeout time.Duration, proto protocol.ID,
 	msgEndpoint *network.MessageEndpoint, rt routingtable.RoutingTable,
 	queue eq.EventQueue, sched events.Scheduler, resultsChan chan interface{},
-	success func(context.Context, []interface{}, *pb.Message,
-		chan interface{}) (bool, []interface{})) *SimpleQuery {
+	handleResultFn HandleResultFn) *SimpleQuery {
 
 	ctx, span := internal.StartSpan(ctx, "SimpleQuery.NewSimpleQuery",
 		trace.WithAttributes(attribute.String("Target", kadid.Hex())))
@@ -72,26 +71,25 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 	addToPeerlist(peerlist, closestPeers)
 
 	query := &SimpleQuery{
-		ctx:                 ctx,
-		message:             message,
-		kadid:               kadid,
-		concurrency:         concurrency,
-		timeout:             timeout,
-		proto:               proto,
-		host:                h,
-		msgEndpoint:         msgEndpoint,
-		rt:                  rt,
-		peerlist:            peerlist,
-		eventqueue:          queue,
-		sched:               sched,
-		interestingElements: []interface{}{},
-		resultsChan:         resultsChan,
-		testSuccess:         success,
+		ctx:            ctx,
+		message:        message,
+		kadid:          kadid,
+		concurrency:    concurrency,
+		timeout:        timeout,
+		proto:          proto,
+		msgEndpoint:    msgEndpoint,
+		rt:             rt,
+		peerlist:       peerlist,
+		eventqueue:     queue,
+		sched:          sched,
+		state:          []interface{}{},
+		resultsChan:    resultsChan,
+		handleResultFn: handleResultFn,
 	}
 
 	// TODO: add concurrency request events to eventqueue
 	for i := 0; i < concurrency; i++ {
-		query.eventqueue.Enqueue(query.newRequest)
+		query.eventqueue.Enqueue(query.NewRequest)
 	}
 
 	return query
@@ -107,13 +105,14 @@ func (q *SimpleQuery) checkIfDone() error {
 	case <-q.ctx.Done():
 		// query is cancelled, mark it as done
 		q.done = true
+		close(q.resultsChan)
 		return errors.New("query cancelled")
 	default:
 	}
 	return nil
 }
 
-func (q *SimpleQuery) newRequest() {
+func (q *SimpleQuery) NewRequest() {
 	ctx, span := internal.StartSpan(q.ctx, "SimpleQuery.newRequest")
 	defer span.End()
 
@@ -139,6 +138,8 @@ func (q *SimpleQuery) newRequest() {
 	})
 }
 
+// sendRequest
+// note that this function is called in a separate go routine
 func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 	ctx, cancel := context.WithTimeout(ctx, q.timeout)
 	defer cancel()
@@ -184,15 +185,6 @@ func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
 		q.rt.AddPeer(ctx, p)
 	}
 
-	var success bool
-	success, q.interestingElements = q.testSuccess(ctx, q.interestingElements, resp, q.resultsChan)
-	if success {
-		// query is done, don't send any more requests
-		span.AddEvent("query success")
-		q.done = true
-		return
-	}
-
 	updatePeerStatusInPeerlist(q.peerlist, p, queried)
 
 	newPeers := network.ParsePeers(ctx, closerPeers)
@@ -211,8 +203,17 @@ func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
 
 	addToPeerlist(q.peerlist, newPeerIds)
 
+	var stop bool
+	q.state = q.handleResultFn(ctx, q.state, resp, q.resultsChan)
+	if stop {
+		// query is done, don't send any more requests
+		span.AddEvent("query success")
+		q.done = true
+		return
+	}
+
 	// add pending request for this query to eventqueue
-	q.eventqueue.Enqueue(q.newRequest)
+	q.eventqueue.Enqueue(q.NewRequest)
 }
 
 func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
@@ -234,12 +235,5 @@ func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
 	updatePeerStatusInPeerlist(q.peerlist, peerid, unreachable)
 
 	// add pending request for this query to eventqueue
-	q.eventqueue.Enqueue(q.newRequest)
-}
-
-func (q *SimpleQuery) Close() {
-	// TODO: check if we need to cancel anything else
-	q.done = true
-	q.resultsChan <- errors.New("query cancelled")
-	close(q.resultsChan)
+	q.eventqueue.Enqueue(q.NewRequest)
 }

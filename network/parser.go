@@ -49,3 +49,11 @@ func ParsePeers(ctx context.Context, pbps []*pb.Message_Peer) []peer.AddrInfo {
 	}
 	return peers
 }
+
+func FindPeerRequest(p peer.ID) *pb.Message {
+	marshalledPeerid, _ := p.MarshalBinary()
+	return &pb.Message{
+		Type: pb.Message_FIND_NODE,
+		Key:  marshalledPeerid,
+	}
+}
