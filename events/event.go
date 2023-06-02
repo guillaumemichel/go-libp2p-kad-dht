@@ -39,8 +39,8 @@ type EventsManager struct {
 	queue eq.EventQueue
 }
 
-func NewEventsManager() *EventsManager {
-	return &EventsManager{queue: fifo.NewQueue()}
+func NewEventsManager(ctx context.Context) *EventsManager {
+	return &EventsManager{queue: fifo.NewQueue(ctx)}
 }
 
 func NewEvent(ctx context.Context, em *EventsManager, e interface{}) {

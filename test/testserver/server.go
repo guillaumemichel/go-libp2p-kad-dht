@@ -38,7 +38,7 @@ func serv(ctx context.Context) peer.AddrInfo {
 		panic(err)
 	}
 
-	em := events.NewEventsManager()
+	em := events.NewEventsManager(ctx)
 	rt := simplert.NewSimpleRT(key.PeerKadID(h.ID()), 20)
 	serv := server.NewServer(ctx, h, rt, em, []protocol.ID{consts.ProtocolDHT})
 	server.SetStreamHandler(serv, serv.DefaultStreamHandler, consts.ProtocolDHT)

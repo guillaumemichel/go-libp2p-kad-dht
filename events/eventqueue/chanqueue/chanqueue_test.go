@@ -1,19 +1,21 @@
 package chanqueue
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestChanQueue(t *testing.T) {
+	ctx := context.Background()
 	nEvents := 10
 	events := make([]int, nEvents)
 	for i := 0; i < nEvents; i++ {
 		events[i] = i
 	}
 
-	q := NewChanQueue(nEvents)
+	q := NewChanQueue(ctx, nEvents)
 	if q.Size() != 0 {
 		t.Errorf("Expected size 0, got %d", q.Size())
 	}

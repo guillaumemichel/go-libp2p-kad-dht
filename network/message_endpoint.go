@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -20,6 +19,8 @@ import (
 
 // TODO: Use sync.Pool to reuse buffers https://pkg.go.dev/sync#Pool
 
+type DialReportFn func(context.Context, bool)
+
 type MessageEndpoint struct {
 	Host host.Host
 
@@ -35,6 +36,28 @@ func NewMessageEndpoint(host host.Host) *MessageEndpoint {
 		writers: sync.Pool{},
 		readers: sync.Pool{},
 	}
+}
+
+func (msgEndpoint *MessageEndpoint) AsyncDialAndReport(ctx context.Context, p peer.ID, reportFn DialReportFn) {
+	go func() {
+		ctx, span := internal.StartSpan(ctx, "MessageEndpoint.AsyncDialAndReport", trace.WithAttributes(
+			attribute.String("PeerID", p.String()),
+		))
+		defer span.End()
+
+		success := true
+		if err := msgEndpoint.DialPeer(ctx, p); err != nil {
+			span.AddEvent("dial failed", trace.WithAttributes(
+				attribute.String("Error", err.Error()),
+			))
+			success = false
+		} else {
+			span.AddEvent("dial successful")
+		}
+
+		// report dial result where it is needed
+		reportFn(ctx, success)
+	}()
 }
 
 func (msgEndpoint *MessageEndpoint) DialPeer(ctx context.Context, p peer.ID) error {
@@ -69,51 +92,31 @@ func (msgEndpoint *MessageEndpoint) MaybeAddToPeerstore(ai peer.AddrInfo, ttl ti
 }
 
 func (msgEndpoint *MessageEndpoint) SendRequest(ctx context.Context, p peer.ID, req *pb.Message, proto protocol.ID) (*pb.Message, error) {
+	ctx, span := internal.StartSpan(ctx, "MessageEndpoint.SendRequest", trace.WithAttributes(
+		attribute.String("PeerID", p.String()),
+	))
+	defer span.End()
+
 	s, err := msgEndpoint.Host.NewStream(ctx, p, proto)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 	defer s.Close()
 
 	err = WriteMsg(s, req)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	resp := &pb.Message{}
 	err = ReadMsg(s, resp)
-	return resp, err
-}
-
-// TODO: totally change this function
-// Timeout should be handled by this function, maybe with context??
-func (msgEndpoint *MessageEndpoint) SendDhtRequest(p peer.ID, req *pb.Message, timeout time.Duration) error {
-	ctx := context.Background()                                           // TODO: figure out context
-	s, err := msgEndpoint.Host.NewStream(ctx, p, "/dummy/protocol/1.0.0") // TODO: update protocol
 	if err != nil {
-		fmt.Println("stream creation error")
-		return err
+		span.RecordError(err)
+		return nil, err
 	}
-	defer s.Close()
-
-	err = WriteMsg(s, req)
-	if err != nil {
-		fmt.Println("error writing message")
-		return err
-	}
-
-	resp := &pb.Message{}
-	err = ReadMsg(s, resp)
-	if err != nil {
-		fmt.Println("error reading message")
-		return err
-	}
-
-	return nil
-}
-
-func SendRequest(ctx context.Context, me *MessageEndpoint, req *pb.Message, timeout time.Duration) error {
-	return nil
+	return resp, nil
 }
 
 func WriteMsg(s network.Stream, msg protoreflect.ProtoMessage) error {

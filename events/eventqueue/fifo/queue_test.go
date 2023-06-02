@@ -1,6 +1,7 @@
 package fifo
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,7 @@ func TestQueue(t *testing.T) {
 	for i := 0; i < nEvents; i++ {
 		events[i] = i
 	}
-	q := NewQueue()
+	q := NewQueue(context.Background())
 	if q.Size() != 0 {
 		t.Errorf("Expected size 0, got %d", q.Size())
 	}

@@ -58,8 +58,8 @@ func client1(ctx context.Context, ai peer.AddrInfo) {
 		log.Println("failed to add peer")
 	}
 	sched := events.NewScheduler(clock.NewMock())
-	eventqueue := chanqueue.NewChanQueue(1000)
-	go events.Run(ctx, sched, eventqueue)
+	eventqueue := chanqueue.NewChanQueue(ctx, 1000)
+	go events.RunLoop(ctx, sched, eventqueue)
 
 	sr, err := simplerouting.NewSimpleRouting(msgEndpoint, rt, eventqueue, *sched)
 	if err != nil {
@@ -104,8 +104,8 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 	}
 
 	sched := events.NewScheduler(clock.NewMock())
-	eventqueue := chanqueue.NewChanQueue(1000)
-	go events.Run(ctx, sched, eventqueue)
+	eventqueue := chanqueue.NewChanQueue(ctx, 1000)
+	go events.RunLoop(ctx, sched, eventqueue)
 
 	resultChan := make(chan interface{}, 10)
 	successFnc := func(ctx context.Context, tmp []interface{}, resp *pb.Message, resultChan chan interface{}) []interface{} {
@@ -133,7 +133,7 @@ func serv(ctx context.Context) peer.AddrInfo {
 		panic(err)
 	}
 
-	em := events.NewEventsManager()
+	em := events.NewEventsManager(ctx)
 	rt := simplert.NewSimpleRT(key.PeerKadID(h.ID()), 20)
 	serv := server.NewServer(ctx, h, rt, em, []protocol.ID{consts.ProtocolDHT})
 	server.SetStreamHandler(serv, serv.DefaultStreamHandler, consts.ProtocolDHT)

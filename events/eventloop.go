@@ -5,14 +5,17 @@ import (
 	"fmt"
 
 	eq "github.com/libp2p/go-libp2p-kad-dht/events/eventqueue"
+	"github.com/libp2p/go-libp2p-kad-dht/internal"
 )
 
-func Run(ctx context.Context, sched *Scheduler, queue eq.EventQueue) {
+func RunLoop(ctx context.Context, sched *Scheduler, queue eq.EventQueue) {
 	alarm := RunOverdueActions(ctx, sched)
 	timer := sched.Clock.Timer(sched.Clock.Until(alarm))
 
 	newsChan := eq.NewsChan(queue)
 	for {
+		EmptyQueue(ctx, queue)
+
 		select {
 		case <-ctx.Done():
 			return
@@ -21,14 +24,7 @@ func Run(ctx context.Context, sched *Scheduler, queue eq.EventQueue) {
 			timer = sched.Clock.Timer(sched.Clock.Until(alarm))
 		case <-newsChan:
 			event := eq.Dequeue(queue)
-			switch e := event.(type) {
-			case func(context.Context):
-				e(ctx)
-			case func():
-				e()
-			default:
-				fmt.Println("Unknown event type")
-			}
+			RunEvent(ctx, event)
 			// TODO: if new events have been scheduled before the end of timer
 			// by the handled event, the timer should ring earlier
 		}
@@ -38,14 +34,23 @@ func Run(ctx context.Context, sched *Scheduler, queue eq.EventQueue) {
 func EmptyQueue(ctx context.Context, q eq.EventQueue) {
 	for !eq.Empty(q) {
 		event := q.Dequeue()
-
-		switch e := event.(type) {
-		case func(context.Context):
-			e(ctx)
-		case func():
-			e()
-		default:
-			fmt.Println("Unknown event type")
-		}
+		RunEvent(ctx, event)
 	}
+}
+
+func RunEvent(ctx context.Context, event interface{}) {
+	ctx, span := internal.StartSpan(ctx, "RunEvent")
+	defer span.End()
+
+	switch e := event.(type) {
+	case func(context.Context):
+		e(ctx)
+	case func():
+		e()
+	case nil:
+		// TODO: ignoring nil events (can be generated after ctx cancellation) ?
+	default:
+		fmt.Printf("Unknown event type: %T\n", event)
+	}
+
 }

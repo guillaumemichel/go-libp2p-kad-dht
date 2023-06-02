@@ -57,25 +57,20 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	dialChan := make(chan bool)
 	currAddresses := r.msgEndpoint.Host.Peerstore().Addrs(p)
 
-	// we dial the peer to verify whether the address we received is valid
-	dial := func() {
-		ctx, dialSpan := internal.StartSpan(ctx, "SimpleRouting.FindPeer.dial")
-		if err := r.msgEndpoint.DialPeer(ctx, p); err != nil {
-			dialSpan.AddEvent("dial failed", trace.WithAttributes(
-				attribute.String("Error", err.Error()),
-			))
-			dialChan <- false
-			return
+	// this function is called once the async dial finishes, reporting its result
+	dialReportFn := func(ctx context.Context, success bool) {
+		select {
+		case <-ctx.Done():
+		case dialChan <- success:
 		}
-		dialSpan.AddEvent("DialPeer successful")
-		dialChan <- true
 	}
 
 	// make sure we can still connect to the peer at the address we have
 	if targetConnectedness == libp2pnet.CanConnect {
 		span.AddEvent("Already in peerstore: can connect")
 		dialRunning = true
-		go dial()
+		// spawns a new goroutine to dial the peer and report the result
+		r.msgEndpoint.AsyncDialAndReport(ctx, p, dialReportFn)
 	}
 
 	select {
@@ -99,7 +94,8 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 					newDialRequired = true
 				} else {
 					dialRunning = true
-					go dial()
+					// spawns a new goroutine to dial the peer and report the result
+					r.msgEndpoint.AsyncDialAndReport(ctx, p, dialReportFn)
 				}
 			}
 		}
@@ -110,7 +106,8 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 		}
 		if newDialRequired {
 			newDialRequired = false
-			go dial()
+			// spawns a new goroutine to dial the peer and report the result
+			r.msgEndpoint.AsyncDialAndReport(ctx, p, dialReportFn)
 		} else {
 			dialRunning = false
 		}

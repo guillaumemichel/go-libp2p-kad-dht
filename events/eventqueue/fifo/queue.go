@@ -1,6 +1,11 @@
 package fifo
 
-import "sync"
+import (
+	"context"
+	"sync"
+
+	"github.com/libp2p/go-libp2p-kad-dht/internal"
+)
 
 type element struct {
 	next *element
@@ -8,6 +13,7 @@ type element struct {
 }
 
 type Queue struct {
+	ctx  context.Context
 	head *element
 	tail *element
 	size uint
@@ -16,8 +22,9 @@ type Queue struct {
 	newsChan chan struct{}
 }
 
-func NewQueue() *Queue {
+func NewQueue(ctx context.Context) *Queue {
 	return &Queue{
+		ctx:      ctx,
 		newsChan: make(chan struct{}, 1),
 	}
 }
@@ -25,6 +32,9 @@ func NewQueue() *Queue {
 func (q *Queue) Enqueue(e interface{}) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
+
+	_, span := internal.StartSpan(q.ctx, "FifoQueue.Enqueue")
+	defer span.End()
 
 	elem := &element{data: e}
 	if q.size == 0 {
@@ -45,6 +55,9 @@ func (q *Queue) Enqueue(e interface{}) {
 func (q *Queue) Dequeue() interface{} {
 	q.lock.Lock()
 	defer q.lock.Unlock()
+
+	_, span := internal.StartSpan(q.ctx, "FifoQueue.Dequeue")
+	defer span.End()
 
 	if q.size == 0 {
 		return nil

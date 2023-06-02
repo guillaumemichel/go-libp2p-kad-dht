@@ -39,7 +39,6 @@ func newPeerList(target key.KadKey) *peerList {
 
 // normally peers should already be ordered with distance to target, but we
 // sort them just in case
-// TODO: check corner cases with len(peers) == 0 or 1
 func addToPeerlist(pl *peerList, peers []peer.ID) {
 
 	// linked list of new peers sorted by distance to target
@@ -49,6 +48,7 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 	if pl.closest == nil {
 		pl.closest = newHead
 		pl.closestQueued = newHead
+
 		return
 	}
 
@@ -58,8 +58,6 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 	closestQueuedReached := false
 
 	oldHead := pl.closest
-
-	// TODO: update closestQueued pointer
 
 	r := key.Compare(oldHead.distance, newHead.distance)
 	if r > 0 {
@@ -116,18 +114,21 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 	} else {
 		prev.next = oldHead
 	}
-
 }
 
 func sliceToPeerInfos(target key.KadKey, peers []peer.ID) *peerInfo {
-	if len(peers) == 0 {
-		return nil
-	}
 
 	// create a new list of peerInfo
-	newPeers := make([]peerInfo, len(peers))
-	for i, p := range peers {
-		newPeers[i] = addrInfoToPeerInfo(target, p)
+	newPeers := make([]*peerInfo, 0, len(peers))
+	for _, p := range peers {
+		newPeer := addrInfoToPeerInfo(target, p)
+		if newPeer != nil {
+			newPeers = append(newPeers, newPeer)
+		}
+	}
+
+	if len(newPeers) == 0 {
+		return nil
 	}
 
 	// sort the new list
@@ -136,37 +137,26 @@ func sliceToPeerInfos(target key.KadKey, peers []peer.ID) *peerInfo {
 	})
 
 	// convert slice to linked list and remove duplicates
-	curr := &newPeers[0]
+	curr := newPeers[0]
 	for i := 1; i < len(newPeers); i++ {
 		if curr.distance != newPeers[i].distance {
-			curr.next = &newPeers[i]
+			curr.next = newPeers[i]
 			curr = curr.next
 		}
 	}
 	// return head of linked list
-	return &newPeers[0]
+	return newPeers[0]
 }
 
-func addrInfoToPeerInfo(target key.KadKey, p peer.ID) peerInfo {
-	return peerInfo{
+func addrInfoToPeerInfo(target key.KadKey, p peer.ID) *peerInfo {
+	if p == "" {
+		return nil
+	}
+	return &peerInfo{
 		distance: key.Xor(target, key.PeerKadID(p)),
 		status:   queued,
 		id:       p,
 	}
-}
-
-func popClosestQueued(pl *peerList) peer.ID {
-	if pl.closestQueued == nil {
-		return peer.ID("")
-	}
-	pi := pl.closestQueued
-	pi.status = waiting
-	curr := pl.closestQueued
-	for curr.next != nil && curr.next.status != queued {
-		curr = curr.next
-	}
-	pl.closestQueued = curr
-	return pi.id
 }
 
 func updatePeerStatusInPeerlist(pl *peerList, p peer.ID, newStatus peerStatus) {
@@ -176,5 +166,28 @@ func updatePeerStatusInPeerlist(pl *peerList, p peer.ID, newStatus peerStatus) {
 	}
 	if curr != nil {
 		curr.status = newStatus
+
+		if curr == pl.closestQueued && newStatus != queued {
+			pl.closestQueued = findNextQueued(curr)
+		}
 	}
+}
+
+func popClosestQueued(pl *peerList) peer.ID {
+	if pl.closestQueued == nil {
+		return peer.ID("")
+	}
+	pi := pl.closestQueued
+	pi.status = waiting
+
+	pl.closestQueued = findNextQueued(pi)
+	return pi.id
+}
+
+func findNextQueued(pi *peerInfo) *peerInfo {
+	curr := pi
+	for curr != nil && curr.status != queued {
+		curr = curr.next
+	}
+	return curr
 }

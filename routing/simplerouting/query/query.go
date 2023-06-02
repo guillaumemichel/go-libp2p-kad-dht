@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
@@ -90,6 +91,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 	// TODO: add concurrency request events to eventqueue
 	for i := 0; i < concurrency; i++ {
 		query.eventqueue.Enqueue(query.NewRequest)
+		span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(query.eventqueue.Size())))
 	}
 
 	return query
@@ -117,7 +119,7 @@ func (q *SimpleQuery) NewRequest() {
 	defer span.End()
 
 	if err := q.checkIfDone(); err != nil {
-		span.AddEvent(err.Error())
+		span.RecordError(err)
 		return
 	}
 
@@ -167,14 +169,16 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 	q.eventqueue.Enqueue(func() {
 		q.handleResponse(p, resp)
 	})
+	span.AddEvent("Enqueued SimpleQuery.handleResponse. Queue size: " + strconv.Itoa(int(q.eventqueue.Size())))
 }
 
 func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
-	ctx, span := internal.StartSpan(q.ctx, "SimpleQuery.handleResponse")
+	ctx, span := internal.StartSpan(q.ctx, "SimpleQuery.handleResponse",
+		trace.WithAttributes(attribute.String("Target", q.kadid.Hex()), attribute.String("From Peer", p.String())))
 	defer span.End()
 
 	if err := q.checkIfDone(); err != nil {
-		span.AddEvent(err.Error())
+		span.RecordError(err)
 		return
 	}
 
@@ -214,6 +218,7 @@ func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
 
 	// add pending request for this query to eventqueue
 	q.eventqueue.Enqueue(q.NewRequest)
+	span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(q.eventqueue.Size())))
 }
 
 func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
@@ -228,7 +233,7 @@ func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
 	}
 
 	if err := q.checkIfDone(); err != nil {
-		span.AddEvent(err.Error())
+		span.RecordError(err)
 		return
 	}
 
