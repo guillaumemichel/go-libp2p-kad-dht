@@ -48,8 +48,8 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 
 	// create the query and add appropriate events to the event queue
 	query.NewSimpleQuery(ctx, kadid, msg, r.queryConcurrency, r.queryTimeout,
-		r.protocolID, r.msgEndpoint, r.rt, r.eventqueue, r.sched, resultsChan,
-		handleResultsFn)
+		r.protocolID, r.msgEndpoint, r.rt, r.eventQueue, r.eventPlanner,
+		resultsChan, handleResultsFn)
 
 	// only one dial runs at a time to ensure sequentiality
 	dialRunning := false

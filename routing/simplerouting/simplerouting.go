@@ -16,8 +16,8 @@ type SimpleRouting struct {
 	msgEndpoint *network.MessageEndpoint
 	rt          routingtable.RoutingTable
 
-	eventqueue eq.EventQueue
-	sched      events.Scheduler
+	eventQueue   eq.EventQueue
+	eventPlanner events.EventPlanner
 
 	queryConcurrency      int
 	queryTimeout          time.Duration
@@ -28,7 +28,7 @@ type SimpleRouting struct {
 }
 
 func NewSimpleRouting(msgEndpoint *network.MessageEndpoint, rt routingtable.RoutingTable,
-	queue eq.EventQueue, sched events.Scheduler, options ...Option) (*SimpleRouting, error) {
+	queue eq.EventQueue, ep events.EventPlanner, options ...Option) (*SimpleRouting, error) {
 
 	var cfg Config
 	if err := cfg.Apply(append([]Option{DefaultConfig}, options...)...); err != nil {
@@ -41,8 +41,8 @@ func NewSimpleRouting(msgEndpoint *network.MessageEndpoint, rt routingtable.Rout
 	return &SimpleRouting{
 		msgEndpoint:           msgEndpoint,
 		rt:                    rt,
-		eventqueue:            queue,
-		sched:                 sched,
+		eventQueue:            queue,
+		eventPlanner:          ep,
 		queryConcurrency:      cfg.QueryConcurrency,
 		queryTimeout:          cfg.QueryTimeout,
 		maxConcurrentRequests: cfg.MaxConcurrentRequests,

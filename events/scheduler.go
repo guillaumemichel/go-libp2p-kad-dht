@@ -9,12 +9,12 @@ import (
 )
 
 const (
-	// MAGIC: the scheduler will wake up at most once per hour, even if there
+	// MAGIC: the EventPlanner will wake up at most once per hour, even if there
 	// is nothing to do.
 	UnlimitedSleepDuration = time.Hour
 )
 
-type Scheduler struct {
+type EventPlanner struct {
 	Clock clock.Clock
 
 	NextAction *timedAction
@@ -26,22 +26,22 @@ type timedAction struct {
 	next   *timedAction
 }
 
-func NewScheduler(clk clock.Clock) *Scheduler {
-	return &Scheduler{
+func NewEventPlanner(clk clock.Clock) *EventPlanner {
+	return &EventPlanner{
 		Clock: clk,
 	}
 }
 
-func ScheduleAction(ctx context.Context, sched *Scheduler, d time.Duration, a interface{}) {
-	t := sched.Clock.Now().Add(d)
-	if sched.NextAction == nil {
-		sched.NextAction = &timedAction{action: a, time: t}
+func ScheduleAction(ctx context.Context, ep *EventPlanner, d time.Duration, a interface{}) {
+	t := ep.Clock.Now().Add(d)
+	if ep.NextAction == nil {
+		ep.NextAction = &timedAction{action: a, time: t}
 		return
 	}
 
-	curr := sched.NextAction
+	curr := ep.NextAction
 	if t.Before(curr.time) {
-		sched.NextAction = &timedAction{action: a, time: t, next: curr}
+		ep.NextAction = &timedAction{action: a, time: t, next: curr}
 		return
 	}
 	for curr.next != nil && t.After(curr.next.time) {
@@ -50,14 +50,14 @@ func ScheduleAction(ctx context.Context, sched *Scheduler, d time.Duration, a in
 	curr.next = &timedAction{action: a, time: t, next: curr.next}
 }
 
-func RemoveAction(ctx context.Context, sched *Scheduler, a interface{}) {
-	if sched.NextAction == nil {
+func RemoveAction(ctx context.Context, ep *EventPlanner, a interface{}) {
+	if ep.NextAction == nil {
 		return
 	}
 
-	curr := sched.NextAction
+	curr := ep.NextAction
 	if curr.action == a {
-		sched.NextAction = curr.next
+		ep.NextAction = curr.next
 		return
 	}
 	for curr.next != nil {
@@ -69,38 +69,38 @@ func RemoveAction(ctx context.Context, sched *Scheduler, a interface{}) {
 	}
 }
 
-func RunOverdueActions(ctx context.Context, sched *Scheduler) time.Time {
+func RunOverdueActions(ctx context.Context, ep *EventPlanner) time.Time {
 	ctx, span := internal.StartSpan(ctx, "events.RunOverdueActions")
 	defer span.End()
 
-	now := sched.Clock.Now()
-	for sched.NextAction != nil && sched.NextAction.time.Before(now) {
-		switch e := sched.NextAction.action.(type) {
+	now := ep.Clock.Now()
+	for ep.NextAction != nil && ep.NextAction.time.Before(now) {
+		switch e := ep.NextAction.action.(type) {
 		case func(context.Context):
 			e(ctx)
 		default:
 		}
 
-		sched.NextAction = sched.NextAction.next
+		ep.NextAction = ep.NextAction.next
 
-		now = sched.Clock.Now()
+		now = ep.Clock.Now()
 	}
 
-	if sched.NextAction == nil {
+	if ep.NextAction == nil {
 		span.AddEvent("no further actions to run")
 		return time.Time{}
 	}
-	return sched.NextAction.time
+	return ep.NextAction.time
 }
 
-func TimeUntilNextWakeUp(sched *Scheduler) time.Duration {
-	if sched.NextAction == nil {
+func TimeUntilNextWakeUp(ep *EventPlanner) time.Duration {
+	if ep.NextAction == nil {
 		return UnlimitedSleepDuration
 	}
 
-	now := sched.Clock.Now()
-	if sched.NextAction.time.Before(now) {
+	now := ep.Clock.Now()
+	if ep.NextAction.time.Before(now) {
 		return 0
 	}
-	return sched.NextAction.time.Sub(now)
+	return ep.NextAction.time.Sub(now)
 }

@@ -45,8 +45,8 @@ type SimpleQuery struct {
 	msgEndpoint *network.MessageEndpoint
 	rt          routingtable.RoutingTable
 
-	eventqueue eq.EventQueue
-	sched      events.Scheduler
+	eventQueue   eq.EventQueue
+	eventPlanner events.EventPlanner
 
 	peerlist *peerList
 
@@ -59,7 +59,7 @@ type SimpleQuery struct {
 func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 	concurrency int, timeout time.Duration, proto protocol.ID,
 	msgEndpoint *network.MessageEndpoint, rt routingtable.RoutingTable,
-	queue eq.EventQueue, sched events.Scheduler, resultsChan chan interface{},
+	queue eq.EventQueue, ep events.EventPlanner, resultsChan chan interface{},
 	handleResultFn HandleResultFn) *SimpleQuery {
 
 	ctx, span := internal.StartSpan(ctx, "SimpleQuery.NewSimpleQuery",
@@ -81,8 +81,8 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 		msgEndpoint:    msgEndpoint,
 		rt:             rt,
 		peerlist:       peerlist,
-		eventqueue:     queue,
-		sched:          sched,
+		eventQueue:     queue,
+		eventPlanner:   ep,
 		state:          []interface{}{},
 		resultsChan:    resultsChan,
 		handleResultFn: handleResultFn,
@@ -90,8 +90,8 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 
 	// TODO: add concurrency request events to eventqueue
 	for i := 0; i < concurrency; i++ {
-		query.eventqueue.Enqueue(query.NewRequest)
-		span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(query.eventqueue.Size())))
+		query.eventQueue.Enqueue(query.NewRequest)
+		span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(query.eventQueue.Size())))
 	}
 
 	return query
@@ -135,7 +135,7 @@ func (q *SimpleQuery) NewRequest() {
 	go q.sendRequest(ctx, peerid)
 
 	// add timeout to scheduler
-	events.ScheduleAction(ctx, &q.sched, q.timeout, func() {
+	events.ScheduleAction(ctx, &q.eventPlanner, q.timeout, func() {
 		q.requestError(peerid, errors.New("request timeout ("+q.timeout.String()+")"))
 	})
 }
@@ -151,7 +151,7 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 
 	if err := q.msgEndpoint.DialPeer(ctx, p); err != nil {
 		span.AddEvent("peer dial failed")
-		q.eventqueue.Enqueue(func() {
+		q.eventQueue.Enqueue(func() {
 			q.requestError(p, err)
 		})
 		return
@@ -160,16 +160,16 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 	resp, err := q.msgEndpoint.SendRequest(ctx, p, q.message, q.proto)
 	if err != nil {
 		span.AddEvent("request failed")
-		q.eventqueue.Enqueue(func() {
+		q.eventQueue.Enqueue(func() {
 			q.requestError(p, err)
 		})
 		return
 	}
 	span.AddEvent("got a response")
-	q.eventqueue.Enqueue(func() {
+	q.eventQueue.Enqueue(func() {
 		q.handleResponse(p, resp)
 	})
-	span.AddEvent("Enqueued SimpleQuery.handleResponse. Queue size: " + strconv.Itoa(int(q.eventqueue.Size())))
+	span.AddEvent("Enqueued SimpleQuery.handleResponse. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
 }
 
 func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
@@ -217,8 +217,8 @@ func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
 	}
 
 	// add pending request for this query to eventqueue
-	q.eventqueue.Enqueue(q.NewRequest)
-	span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(q.eventqueue.Size())))
+	q.eventQueue.Enqueue(q.NewRequest)
+	span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
 }
 
 func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
@@ -240,5 +240,5 @@ func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
 	updatePeerStatusInPeerlist(q.peerlist, peerid, unreachable)
 
 	// add pending request for this query to eventqueue
-	q.eventqueue.Enqueue(q.NewRequest)
+	q.eventQueue.Enqueue(q.NewRequest)
 }

@@ -8,9 +8,9 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 )
 
-func RunLoop(ctx context.Context, sched *Scheduler, queue eq.EventQueue) {
-	alarm := RunOverdueActions(ctx, sched)
-	timer := sched.Clock.Timer(sched.Clock.Until(alarm))
+func RunLoop(ctx context.Context, ep *EventPlanner, queue eq.EventQueue) {
+	alarm := RunOverdueActions(ctx, ep)
+	timer := ep.Clock.Timer(ep.Clock.Until(alarm))
 
 	newsChan := eq.NewsChan(queue)
 	for {
@@ -20,8 +20,8 @@ func RunLoop(ctx context.Context, sched *Scheduler, queue eq.EventQueue) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			alarm = RunOverdueActions(ctx, sched)
-			timer = sched.Clock.Timer(sched.Clock.Until(alarm))
+			alarm = RunOverdueActions(ctx, ep)
+			timer = ep.Clock.Timer(ep.Clock.Until(alarm))
 		case <-newsChan:
 			event := eq.Dequeue(queue)
 			RunEvent(ctx, event)

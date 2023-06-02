@@ -57,11 +57,11 @@ func client1(ctx context.Context, ai peer.AddrInfo) {
 	if !rt.AddPeer(ctx, ai.ID) {
 		log.Println("failed to add peer")
 	}
-	sched := events.NewScheduler(clock.NewMock())
+	ep := events.NewEventPlanner(clock.NewMock())
 	eventqueue := chanqueue.NewChanQueue(ctx, 1000)
-	go events.RunLoop(ctx, sched, eventqueue)
+	go events.RunLoop(ctx, ep, eventqueue)
 
-	sr, err := simplerouting.NewSimpleRouting(msgEndpoint, rt, eventqueue, *sched)
+	sr, err := simplerouting.NewSimpleRouting(msgEndpoint, rt, eventqueue, *ep)
 	if err != nil {
 		panic(err)
 	}
@@ -103,9 +103,9 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 		log.Println("failed to add peer")
 	}
 
-	sched := events.NewScheduler(clock.NewMock())
+	ep := events.NewEventPlanner(clock.NewMock())
 	eventqueue := chanqueue.NewChanQueue(ctx, 1000)
-	go events.RunLoop(ctx, sched, eventqueue)
+	go events.RunLoop(ctx, ep, eventqueue)
 
 	resultChan := make(chan interface{}, 10)
 	successFnc := func(ctx context.Context, tmp []interface{}, resp *pb.Message, resultChan chan interface{}) []interface{} {
@@ -115,7 +115,7 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 		}
 		return tmp
 	}
-	sq.NewSimpleQuery(ctx, key.PeerKadID(p), msg, 1, time.Second, consts.ProtocolDHT, msgEndpoint, rt, eventqueue, *sched, resultChan, successFnc)
+	sq.NewSimpleQuery(ctx, key.PeerKadID(p), msg, 1, time.Second, consts.ProtocolDHT, msgEndpoint, rt, eventqueue, *ep, resultChan, successFnc)
 
 	res := <-resultChan
 	switch r := res.(type) {
