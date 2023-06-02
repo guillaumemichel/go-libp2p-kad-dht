@@ -184,14 +184,9 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 	}
 	span.AddEvent("got a response")
 
-	// we always want to have the maximal number of requests in flight
-	newRequestsToSend := 1 + q.concurrency - q.inflightRequests
-
-	for i := 0; i < newRequestsToSend; i++ {
-		q.eventQueue.Enqueue(func() {
-			q.handleResponse(p, resp)
-		})
-	}
+	q.eventQueue.Enqueue(func() {
+		q.handleResponse(p, resp)
+	})
 	span.AddEvent("Enqueued SimpleQuery.handleResponse. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
 }
 
@@ -239,9 +234,20 @@ func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
 		return
 	}
 
-	// add pending request for this query to eventqueue
-	q.eventQueue.Enqueue(q.newRequest)
-	span.AddEvent("Enqueued SimpleQuery.newRequest. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
+	// we always want to have the maximal number of requests in flight
+	newRequestsToSend := 1 + q.concurrency - q.inflightRequests
+	if q.peerlist.queuedCount < newRequestsToSend {
+		newRequestsToSend = q.peerlist.queuedCount
+	}
+
+	for i := 0; i < newRequestsToSend; i++ {
+		// add new pending request(s) for this query to eventqueue
+		q.eventQueue.Enqueue(q.newRequest)
+
+	}
+	span.AddEvent("Enqueued " + strconv.Itoa(newRequestsToSend) +
+		"SimpleQuery.newRequest. Queue size: " +
+		strconv.Itoa(int(q.eventQueue.Size())))
 }
 
 func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
