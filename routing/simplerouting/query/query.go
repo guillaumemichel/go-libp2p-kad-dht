@@ -48,7 +48,8 @@ type SimpleQuery struct {
 	eventQueue   eq.EventQueue
 	eventPlanner events.EventPlanner
 
-	peerlist *peerList
+	inflightRequests int // requests that are either in flight or scheduled
+	peerlist         *peerList
 
 	// success condition
 	state          []interface{}
@@ -56,6 +57,13 @@ type SimpleQuery struct {
 	handleResultFn HandleResultFn
 }
 
+// NewSimpleQuery creates a new SimpleQuery. It initializes the query by adding
+// the closest peers to the target key from the provided routing table to the
+// query's peerlist. It sends `concurreny` requests events to the provided event
+// queue. The requests events and followup events are handled by the event queue
+// reader, and the parameters to these events are determined by the query's
+// parameters. The query keeps track of the closest known peers to the target
+// key, and the peers that have been queried so far.
 func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 	concurrency int, timeout time.Duration, proto protocol.ID,
 	msgEndpoint *network.MessageEndpoint, rt routingtable.RoutingTable,
@@ -72,27 +80,34 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 	addToPeerlist(peerlist, closestPeers)
 
 	query := &SimpleQuery{
-		ctx:            ctx,
-		message:        message,
-		kadid:          kadid,
-		concurrency:    concurrency,
-		timeout:        timeout,
-		proto:          proto,
-		msgEndpoint:    msgEndpoint,
-		rt:             rt,
-		peerlist:       peerlist,
-		eventQueue:     queue,
-		eventPlanner:   ep,
-		state:          []interface{}{},
-		resultsChan:    resultsChan,
-		handleResultFn: handleResultFn,
+		ctx:              ctx,
+		message:          message,
+		kadid:            kadid,
+		concurrency:      concurrency,
+		timeout:          timeout,
+		proto:            proto,
+		msgEndpoint:      msgEndpoint,
+		rt:               rt,
+		inflightRequests: 0,
+		peerlist:         peerlist,
+		eventQueue:       queue,
+		eventPlanner:     ep,
+		state:            []interface{}{},
+		resultsChan:      resultsChan,
+		handleResultFn:   handleResultFn,
 	}
 
-	// TODO: add concurrency request events to eventqueue
-	for i := 0; i < concurrency; i++ {
-		query.eventQueue.Enqueue(query.NewRequest)
-		span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(query.eventQueue.Size())))
+	// we don't want more pending requests than the number of peers we can query
+	requestsEvents := concurrency
+	if len(closestPeers) < concurrency {
+		requestsEvents = len(closestPeers)
 	}
+	for i := 0; i < requestsEvents; i++ {
+		// add concurrency requests to the event queue
+		query.eventQueue.Enqueue(query.newRequest)
+		span.AddEvent("Enqueued SimpleQuery.newRequest. Queue size: " + strconv.Itoa(int(query.eventQueue.Size())))
+	}
+	query.inflightRequests = requestsEvents
 
 	return query
 }
@@ -114,12 +129,13 @@ func (q *SimpleQuery) checkIfDone() error {
 	return nil
 }
 
-func (q *SimpleQuery) NewRequest() {
+func (q *SimpleQuery) newRequest() {
 	ctx, span := internal.StartSpan(q.ctx, "SimpleQuery.newRequest")
 	defer span.End()
 
 	if err := q.checkIfDone(); err != nil {
 		span.RecordError(err)
+		q.inflightRequests--
 		return
 	}
 
@@ -127,6 +143,7 @@ func (q *SimpleQuery) NewRequest() {
 	if peerid == "" {
 		// TODO: handle this case
 		span.AddEvent("all peers queried")
+		q.inflightRequests--
 		return
 	}
 	span.AddEvent("peer selected: " + peerid.String())
@@ -166,9 +183,15 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 		return
 	}
 	span.AddEvent("got a response")
-	q.eventQueue.Enqueue(func() {
-		q.handleResponse(p, resp)
-	})
+
+	// we always want to have the maximal number of requests in flight
+	newRequestsToSend := 1 + q.concurrency - q.inflightRequests
+
+	for i := 0; i < newRequestsToSend; i++ {
+		q.eventQueue.Enqueue(func() {
+			q.handleResponse(p, resp)
+		})
+	}
 	span.AddEvent("Enqueued SimpleQuery.handleResponse. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
 }
 
@@ -217,8 +240,8 @@ func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
 	}
 
 	// add pending request for this query to eventqueue
-	q.eventQueue.Enqueue(q.NewRequest)
-	span.AddEvent("Enqueued SimpleQuery.NewRequest. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
+	q.eventQueue.Enqueue(q.newRequest)
+	span.AddEvent("Enqueued SimpleQuery.newRequest. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
 }
 
 func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
@@ -240,5 +263,5 @@ func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
 	updatePeerStatusInPeerlist(q.peerlist, peerid, unreachable)
 
 	// add pending request for this query to eventqueue
-	q.eventQueue.Enqueue(q.NewRequest)
+	q.eventQueue.Enqueue(q.newRequest)
 }

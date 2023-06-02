@@ -29,11 +29,14 @@ type peerList struct {
 
 	closest       *peerInfo
 	closestQueued *peerInfo
+
+	queuedCount int
 }
 
 func newPeerList(target key.KadKey) *peerList {
 	return &peerList{
-		target: target,
+		target:      target,
+		queuedCount: 0,
 	}
 }
 
@@ -49,6 +52,9 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 		pl.closest = newHead
 		pl.closestQueued = newHead
 
+		for curr := newHead; curr != nil; curr = curr.next {
+			pl.queuedCount++
+		}
 		return
 	}
 
@@ -81,6 +87,9 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 			}
 			prev = newHead
 			newHead = newHead.next
+
+			// increased queued count as all new peers are queued
+			pl.queuedCount++
 		} else {
 			// oldHead is closer than newHead
 
@@ -111,6 +120,11 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 	// append the remaining list to the end
 	if oldHead == nil {
 		prev.next = newHead
+
+		// if there are still new peers to be appended, increase queued count
+		for curr := newHead; curr != nil; curr = curr.next {
+			pl.queuedCount++
+		}
 	} else {
 		prev.next = oldHead
 	}
@@ -165,6 +179,22 @@ func updatePeerStatusInPeerlist(pl *peerList, p peer.ID, newStatus peerStatus) {
 		curr = curr.next
 	}
 	if curr != nil {
+		if curr.status == queued && newStatus != queued {
+			pl.queuedCount--
+		} else if curr.status != queued && newStatus == queued {
+			pl.queuedCount++
+
+			for curr := pl.closest; curr != nil; curr = curr.next {
+				// if a peer is set to queued, we may need to update closestQueued
+				if curr.id == p {
+					pl.closestQueued = curr
+					break
+				} else if curr == pl.closestQueued {
+					break
+				}
+			}
+		}
+
 		curr.status = newStatus
 
 		if curr == pl.closestQueued && newStatus != queued {
@@ -179,6 +209,7 @@ func popClosestQueued(pl *peerList) peer.ID {
 	}
 	pi := pl.closestQueued
 	pi.status = waiting
+	pl.queuedCount--
 
 	pl.closestQueued = findNextQueued(pi)
 	return pi.id
