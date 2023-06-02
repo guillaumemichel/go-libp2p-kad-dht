@@ -9,6 +9,9 @@ import (
 )
 
 func RunLoop(ctx context.Context, ep *EventPlanner, queue eq.EventQueue) {
+	ctx, span := internal.StartSpan(ctx, "MainEventLoop")
+	defer span.End()
+
 	alarm := RunOverdueActions(ctx, ep)
 	timer := ep.Clock.Timer(ep.Clock.Until(alarm))
 

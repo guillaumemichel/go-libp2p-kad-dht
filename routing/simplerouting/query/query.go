@@ -129,8 +129,8 @@ func (q *SimpleQuery) checkIfDone() error {
 	return nil
 }
 
-func (q *SimpleQuery) newRequest() {
-	ctx, span := internal.StartSpan(q.ctx, "SimpleQuery.newRequest")
+func (q *SimpleQuery) newRequest(ctx context.Context) {
+	ctx, span := internal.StartSpan(ctx, "SimpleQuery.newRequest")
 	defer span.End()
 
 	if err := q.checkIfDone(); err != nil {
@@ -152,8 +152,8 @@ func (q *SimpleQuery) newRequest() {
 	go q.sendRequest(ctx, peerid)
 
 	// add timeout to scheduler
-	events.ScheduleAction(ctx, &q.eventPlanner, q.timeout, func() {
-		q.requestError(peerid, errors.New("request timeout ("+q.timeout.String()+")"))
+	events.ScheduleAction(ctx, &q.eventPlanner, q.timeout, func(ctx context.Context) {
+		q.requestError(ctx, peerid, errors.New("request timeout ("+q.timeout.String()+")"))
 	})
 }
 
@@ -168,8 +168,8 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 
 	if err := q.msgEndpoint.DialPeer(ctx, p); err != nil {
 		span.AddEvent("peer dial failed")
-		q.eventQueue.Enqueue(func() {
-			q.requestError(p, err)
+		q.eventQueue.Enqueue(func(ctx context.Context) {
+			q.requestError(ctx, p, err)
 		})
 		return
 	}
@@ -177,21 +177,21 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, p peer.ID) {
 	resp, err := q.msgEndpoint.SendRequest(ctx, p, q.message, q.proto)
 	if err != nil {
 		span.AddEvent("request failed")
-		q.eventQueue.Enqueue(func() {
-			q.requestError(p, err)
+		q.eventQueue.Enqueue(func(ctx context.Context) {
+			q.requestError(ctx, p, err)
 		})
 		return
 	}
 	span.AddEvent("got a response")
 
-	q.eventQueue.Enqueue(func() {
-		q.handleResponse(p, resp)
+	q.eventQueue.Enqueue(func(ctx context.Context) {
+		q.handleResponse(ctx, p, resp)
 	})
 	span.AddEvent("Enqueued SimpleQuery.handleResponse. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
 }
 
-func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
-	ctx, span := internal.StartSpan(q.ctx, "SimpleQuery.handleResponse",
+func (q *SimpleQuery) handleResponse(ctx context.Context, p peer.ID, resp *pb.Message) {
+	ctx, span := internal.StartSpan(ctx, "SimpleQuery.handleResponse",
 		trace.WithAttributes(attribute.String("Target", q.kadid.Hex()), attribute.String("From Peer", p.String())))
 	defer span.End()
 
@@ -250,8 +250,8 @@ func (q *SimpleQuery) handleResponse(p peer.ID, resp *pb.Message) {
 		strconv.Itoa(int(q.eventQueue.Size())))
 }
 
-func (q *SimpleQuery) requestError(peerid peer.ID, err error) {
-	ctx, span := internal.StartSpan(q.ctx, "SimpleQuery.requestError",
+func (q *SimpleQuery) requestError(ctx context.Context, peerid peer.ID, err error) {
+	ctx, span := internal.StartSpan(ctx, "SimpleQuery.requestError",
 		trace.WithAttributes(attribute.String("PeerID", peerid.String()),
 			attribute.String("Error", err.Error())))
 	defer span.End()
