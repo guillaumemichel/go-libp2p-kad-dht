@@ -5,8 +5,8 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	"github.com/libp2p/go-libp2p-kad-dht/network"
-	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	libp2pnet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -37,7 +37,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	}
 
 	kadid := key.PeerKadID(p)
-	msg := network.FindPeerRequest(p)
+	msg := message.FindPeerRequest(p)
 
 	resultsChan := make(chan interface{}) // peer.AddrInfo
 	handleResultsFn := getFindPeerHandleResultsFn(p)
@@ -47,7 +47,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	defer cancel()
 
 	// create the query and add appropriate events to the event queue
-	sq.NewSimpleQuery(ctx, r.self, kadid, msg, r.queryConcurrency, r.queryTimeout,
+	sq.NewSimpleQuery(ctx, kadid, msg, r.queryConcurrency, r.queryTimeout,
 		r.protocolID, r.msgEndpoint, r.rt, r.eventQueue, r.eventPlanner,
 		resultsChan, handleResultsFn)
 
@@ -142,10 +142,16 @@ func getFindPeerHandleResultsFn(p peer.ID) sq.HandleResultFn {
 	return func(ctx context.Context, i []interface{}, m *pb.Message,
 		resultsChan chan interface{}) []interface{} {
 
-		for _, ai := range network.ParsePeers(ctx, m.GetCloserPeers()) {
+		for _, ai := range message.ParsePeers(ctx, m.GetCloserPeers()) {
 			if ai.ID == p {
 				// we found the peer we were looking for
-				resultsChan <- ai
+
+				select {
+				case <-ctx.Done():
+					return nil
+				case resultsChan <- ai:
+				}
+
 				break
 			}
 		}

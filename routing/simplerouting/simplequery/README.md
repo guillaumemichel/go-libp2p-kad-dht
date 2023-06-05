@@ -77,6 +77,7 @@ customs functions as parameters
 - do we want to allow query to self? No! but what should handle it?
     - the query (and routing) must be self aware?
     - message endpoint should just skip the message and return success(nil), so that the next message can be send immediately (after being picked up by the scheduler)
+- remove all peerids from query. they should be handled somewhere else! query should only handle key.KadKey. However, peer.ID could be replaced by an address abstraction (interface{} ?).
 
 ## To explore
 

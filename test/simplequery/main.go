@@ -13,7 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
-	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
 	"github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
@@ -116,9 +116,8 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 		}
 		return tmp
 	}
-	sq.NewSimpleQuery(ctx, key.PeerKadID(h.ID()), key.PeerKadID(p), msg, 1,
-		time.Second, consts.ProtocolDHT, msgEndpoint, rt, eventqueue, *ep,
-		resultChan, successFnc)
+	sq.NewSimpleQuery(ctx, key.PeerKadID(p), msg, 1, time.Second, consts.ProtocolDHT,
+		msgEndpoint, rt, eventqueue, *ep, resultChan, successFnc)
 
 	res := <-resultChan
 	switch r := res.(type) {

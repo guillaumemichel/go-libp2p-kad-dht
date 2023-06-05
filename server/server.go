@@ -5,7 +5,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
 	rt "github.com/libp2p/go-libp2p-kad-dht/routingtable"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"

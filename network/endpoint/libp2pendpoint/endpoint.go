@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	net "github.com/libp2p/go-libp2p-kad-dht/network"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
-	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -102,14 +102,14 @@ func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, p peer.ID, r
 	}
 	defer s.Close()
 
-	err = net.WriteMsg(s, req)
+	err = WriteMsg(s, req)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
 	}
 
 	resp := &pb.Message{}
-	err = net.ReadMsg(s, resp)
+	err = ReadMsg(s, resp)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
@@ -123,4 +123,8 @@ func (msgEndpoint *Libp2pEndpoint) Connectedness(p peer.ID) network.Connectednes
 
 func (msgEndpoint *Libp2pEndpoint) PeerInfo(p peer.ID) peer.AddrInfo {
 	return msgEndpoint.host.Peerstore().PeerInfo(p)
+}
+
+func (e *Libp2pEndpoint) KadID() key.KadKey {
+	return key.PeerKadID(e.host.ID())
 }

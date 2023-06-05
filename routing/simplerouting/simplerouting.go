@@ -13,7 +13,6 @@ import (
 )
 
 type SimpleRouting struct {
-	self        key.KadKey
 	msgEndpoint endpoint.Endpoint
 	rt          routingtable.RoutingTable
 
@@ -42,7 +41,6 @@ func NewSimpleRouting(self key.KadKey, msgEndpoint endpoint.Endpoint,
 	}
 
 	return &SimpleRouting{
-		self:                  self,
 		msgEndpoint:           msgEndpoint,
 		rt:                    rt,
 		eventQueue:            queue,

@@ -213,3 +213,7 @@ Below:
 Use proto3 instead of custom data format.
 Use r := pbio.NewDelimitedReader(s, signedIDSize), as reader and similar writer.
 Use sync.Pool to avoid too much allocations.
+
+### Modularity
+
+Ideally no module should depend on a specific peer addressing (e.g peer.ID). All modules should support generic network addressing.

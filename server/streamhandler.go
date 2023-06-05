@@ -6,14 +6,14 @@ import (
 	"io"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events"
-	"github.com/libp2p/go-libp2p-kad-dht/network"
-	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	endpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
 	net "github.com/libp2p/go-libp2p/core/network"
 )
 
 func (s *Server) DefaultStreamHandler(stream net.Stream) {
 	req := &pb.Message{}
-	err := network.ReadMsg(stream, req)
+	err := endpoint.ReadMsg(stream, req)
 	if err != nil {
 		if err == io.EOF {
 			return

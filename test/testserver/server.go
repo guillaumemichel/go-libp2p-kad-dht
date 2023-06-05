@@ -8,8 +8,8 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	"github.com/libp2p/go-libp2p-kad-dht/network"
-	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	endpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
 	"github.com/libp2p/go-libp2p-kad-dht/test/util"
@@ -78,12 +78,12 @@ func client(ctx context.Context, serv peer.AddrInfo) {
 		panic(err)
 	}
 
-	err = network.WriteMsg(stream, msg)
+	err = endpoint.WriteMsg(stream, msg)
 	if err != nil {
 		panic(err)
 	}
 	msg = &pb.Message{}
-	err = network.ReadMsg(stream, msg)
+	err = endpoint.ReadMsg(stream, msg)
 	if err != nil {
 		panic(err)
 	}

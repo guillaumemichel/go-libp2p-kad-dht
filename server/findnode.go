@@ -6,16 +6,17 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	"github.com/libp2p/go-libp2p-kad-dht/network"
-	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	endpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
+	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	net "github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-func HandleFindNodeRequest(ctx context.Context, s *Server, req *pb.Message, stream net.Stream) error {
+func HandleFindNodeRequest(ctx context.Context, s *Server, req *pb.Message, stream network.Stream) error {
 
 	p := peer.ID("")
 	err := p.UnmarshalBinary(req.GetKey())
@@ -31,9 +32,9 @@ func HandleFindNodeRequest(ctx context.Context, s *Server, req *pb.Message, stre
 
 	peers := s.RoutingTable.NearestPeers(ctx, key.PeerKadID(p), consts.NClosestPeers)
 
-	req.CloserPeers = network.PeeridsToPbPeers(peers, s.host)
+	req.CloserPeers = message.PeeridsToPbPeers(peers, s.host)
 
-	err = network.WriteMsg(stream, req)
+	err = endpoint.WriteMsg(stream, req)
 	if err != nil {
 		return err
 	}
