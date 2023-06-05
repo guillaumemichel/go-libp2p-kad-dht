@@ -1,4 +1,4 @@
-package query
+package simplequery
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network"
+	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -35,6 +36,7 @@ type HandleResultFn func(context.Context, []interface{}, *pb.Message, chan inter
 
 type SimpleQuery struct {
 	ctx         context.Context
+	self        key.KadKey
 	done        bool
 	kadid       key.KadKey
 	message     *pb.Message
@@ -42,7 +44,7 @@ type SimpleQuery struct {
 	timeout     time.Duration
 	proto       protocol.ID
 
-	msgEndpoint *network.MessageEndpoint
+	msgEndpoint endpoint.Endpoint
 	rt          routingtable.RoutingTable
 
 	eventQueue   eq.EventQueue
@@ -64,9 +66,9 @@ type SimpleQuery struct {
 // reader, and the parameters to these events are determined by the query's
 // parameters. The query keeps track of the closest known peers to the target
 // key, and the peers that have been queried so far.
-func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
+func NewSimpleQuery(ctx context.Context, self, kadid key.KadKey, message *pb.Message,
 	concurrency int, timeout time.Duration, proto protocol.ID,
-	msgEndpoint *network.MessageEndpoint, rt routingtable.RoutingTable,
+	msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
 	queue eq.EventQueue, ep events.EventPlanner, resultsChan chan interface{},
 	handleResultFn HandleResultFn) *SimpleQuery {
 
@@ -81,6 +83,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, message *pb.Message,
 
 	query := &SimpleQuery{
 		ctx:              ctx,
+		self:             self,
 		message:          message,
 		kadid:            kadid,
 		concurrency:      concurrency,
@@ -213,7 +216,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, p peer.ID, resp *pb.Me
 	newPeerIds := make([]peer.ID, 0, len(newPeers))
 
 	for _, ai := range newPeers {
-		if ai.ID == q.msgEndpoint.Host.ID() {
+		if key.Compare(key.PeerKadID(ai.ID), q.self) == 0 {
 			// don't add self to queries or routing table
 			span.AddEvent("remote peer provided self as closer peer")
 			continue

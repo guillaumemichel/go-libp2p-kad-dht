@@ -72,6 +72,12 @@ customs functions as parameters
 
 - following the follow up (if any)
 
+## To be taken care of
+
+- do we want to allow query to self? No! but what should handle it?
+    - the query (and routing) must be self aware?
+    - message endpoint should just skip the message and return success(nil), so that the next message can be send immediately (after being picked up by the scheduler)
+
 ## To explore
 
 - `queryPeerFilter`

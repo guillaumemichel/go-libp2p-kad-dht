@@ -1,4 +1,4 @@
-package query
+package simplequery
 
 import (
 	"sort"

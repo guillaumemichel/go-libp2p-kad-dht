@@ -1,4 +1,4 @@
-package network
+package libp2pendpoint
 
 import (
 	"context"
@@ -6,23 +6,21 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
+	net "github.com/libp2p/go-libp2p-kad-dht/network"
+	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/libp2p/go-msgio/pbio"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // TODO: Use sync.Pool to reuse buffers https://pkg.go.dev/sync#Pool
 
-type DialReportFn func(context.Context, bool)
-
-type MessageEndpoint struct {
-	Host host.Host
+type Libp2pEndpoint struct {
+	host host.Host
 
 	// peer filters to be applied before adding peer to peerstore
 
@@ -30,17 +28,17 @@ type MessageEndpoint struct {
 	readers sync.Pool
 }
 
-func NewMessageEndpoint(host host.Host) *MessageEndpoint {
-	return &MessageEndpoint{
-		Host:    host,
+func NewMessageEndpoint(host host.Host) *Libp2pEndpoint {
+	return &Libp2pEndpoint{
+		host:    host,
 		writers: sync.Pool{},
 		readers: sync.Pool{},
 	}
 }
 
-func (msgEndpoint *MessageEndpoint) AsyncDialAndReport(ctx context.Context, p peer.ID, reportFn DialReportFn) {
+func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context, p peer.ID, reportFn endpoint.DialReportFn) {
 	go func() {
-		ctx, span := internal.StartSpan(ctx, "MessageEndpoint.AsyncDialAndReport", trace.WithAttributes(
+		ctx, span := internal.StartSpan(ctx, "Libp2pEndpoint.AsyncDialAndReport", trace.WithAttributes(
 			attribute.String("PeerID", p.String()),
 		))
 		defer span.End()
@@ -60,19 +58,19 @@ func (msgEndpoint *MessageEndpoint) AsyncDialAndReport(ctx context.Context, p pe
 	}()
 }
 
-func (msgEndpoint *MessageEndpoint) DialPeer(ctx context.Context, p peer.ID) error {
-	_, span := internal.StartSpan(ctx, "MessageEndpoint.DialPeer", trace.WithAttributes(
+func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, p peer.ID) error {
+	_, span := internal.StartSpan(ctx, "Libp2pEndpoint.DialPeer", trace.WithAttributes(
 		attribute.String("PeerID", p.String()),
 	))
 	defer span.End()
 
-	if msgEndpoint.Host.Network().Connectedness(p) == network.Connected {
+	if msgEndpoint.host.Network().Connectedness(p) == network.Connected {
 		span.AddEvent("Already connected")
 		return nil
 	}
 
 	pi := peer.AddrInfo{ID: p}
-	if err := msgEndpoint.Host.Connect(ctx, pi); err != nil {
+	if err := msgEndpoint.host.Connect(ctx, pi); err != nil {
 		span.AddEvent("Connection failed", trace.WithAttributes(
 			attribute.String("Error", err.Error()),
 		))
@@ -82,36 +80,36 @@ func (msgEndpoint *MessageEndpoint) DialPeer(ctx context.Context, p peer.ID) err
 	return nil
 }
 
-func (msgEndpoint *MessageEndpoint) MaybeAddToPeerstore(ai peer.AddrInfo, ttl time.Duration) {
+func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ai peer.AddrInfo, ttl time.Duration) {
 	// Don't add addresses for self or our connected peers. We have better ones.
-	if ai.ID == msgEndpoint.Host.ID() ||
-		msgEndpoint.Host.Network().Connectedness(ai.ID) == network.Connected {
+	if ai.ID == msgEndpoint.host.ID() ||
+		msgEndpoint.host.Network().Connectedness(ai.ID) == network.Connected {
 		return
 	}
-	msgEndpoint.Host.Peerstore().AddAddrs(ai.ID, ai.Addrs, ttl)
+	msgEndpoint.host.Peerstore().AddAddrs(ai.ID, ai.Addrs, ttl)
 }
 
-func (msgEndpoint *MessageEndpoint) SendRequest(ctx context.Context, p peer.ID, req *pb.Message, proto protocol.ID) (*pb.Message, error) {
-	ctx, span := internal.StartSpan(ctx, "MessageEndpoint.SendRequest", trace.WithAttributes(
+func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, p peer.ID, req *pb.Message, proto protocol.ID) (*pb.Message, error) {
+	ctx, span := internal.StartSpan(ctx, "Libp2pEndpoint.SendRequest", trace.WithAttributes(
 		attribute.String("PeerID", p.String()),
 	))
 	defer span.End()
 
-	s, err := msgEndpoint.Host.NewStream(ctx, p, proto)
+	s, err := msgEndpoint.host.NewStream(ctx, p, proto)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
 	}
 	defer s.Close()
 
-	err = WriteMsg(s, req)
+	err = net.WriteMsg(s, req)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
 	}
 
 	resp := &pb.Message{}
-	err = ReadMsg(s, resp)
+	err = net.ReadMsg(s, resp)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
@@ -119,12 +117,10 @@ func (msgEndpoint *MessageEndpoint) SendRequest(ctx context.Context, p peer.ID, 
 	return resp, nil
 }
 
-func WriteMsg(s network.Stream, msg protoreflect.ProtoMessage) error {
-	w := pbio.NewDelimitedWriter(s)
-	return w.WriteMsg(msg)
+func (msgEndpoint *Libp2pEndpoint) Connectedness(p peer.ID) network.Connectedness {
+	return msgEndpoint.host.Network().Connectedness(p)
 }
 
-func ReadMsg(s network.Stream, msg protoreflect.ProtoMessage) error {
-	r := pbio.NewDelimitedReader(s, network.MessageSizeMax)
-	return r.ReadMsg(msg)
+func (msgEndpoint *Libp2pEndpoint) PeerInfo(p peer.ID) peer.AddrInfo {
+	return msgEndpoint.host.Peerstore().PeerInfo(p)
 }

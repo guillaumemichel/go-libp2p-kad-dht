@@ -7,7 +7,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network"
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
-	"github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/query"
+	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	libp2pnet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -17,7 +17,7 @@ import (
 
 // when trying to write results to the results channel, we need to make sure
 // that we don't block forever. select on ctx
-type HandleResultsFn func(context.Context, query.SimpleQuery)
+type HandleResultsFn func(context.Context, sq.SimpleQuery)
 
 // FindPeer searches for a peer with given ID. This is a blocking call.
 func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
@@ -30,10 +30,10 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	}
 
 	// Check if were already connected to them
-	targetConnectedness := r.msgEndpoint.Host.Network().Connectedness(p)
+	targetConnectedness := r.msgEndpoint.Connectedness(p)
 	if targetConnectedness == libp2pnet.Connected {
 		span.AddEvent("Already connected")
-		return r.msgEndpoint.Host.Peerstore().PeerInfo(p), nil
+		return r.msgEndpoint.PeerInfo(p), nil
 	}
 
 	kadid := key.PeerKadID(p)
@@ -47,7 +47,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	defer cancel()
 
 	// create the query and add appropriate events to the event queue
-	query.NewSimpleQuery(ctx, kadid, msg, r.queryConcurrency, r.queryTimeout,
+	sq.NewSimpleQuery(ctx, r.self, kadid, msg, r.queryConcurrency, r.queryTimeout,
 		r.protocolID, r.msgEndpoint, r.rt, r.eventQueue, r.eventPlanner,
 		resultsChan, handleResultsFn)
 
@@ -55,7 +55,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	dialRunning := false
 	newDialRequired := false
 	dialChan := make(chan bool)
-	currAddresses := r.msgEndpoint.Host.Peerstore().Addrs(p)
+	currAddresses := r.msgEndpoint.PeerInfo(p).Addrs
 
 	// this function is called once the async dial finishes, reporting its result
 	dialReportFn := func(ctx context.Context, success bool) {
@@ -102,7 +102,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	case success := <-dialChan:
 		if success {
 			// if we could dial the peer, return its address info
-			return r.msgEndpoint.Host.Peerstore().PeerInfo(p), nil
+			return r.msgEndpoint.PeerInfo(p), nil
 		}
 		if newDialRequired {
 			newDialRequired = false
@@ -112,7 +112,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 			dialRunning = false
 		}
 	}
-	return r.msgEndpoint.Host.Peerstore().PeerInfo(p), nil
+	return r.msgEndpoint.PeerInfo(p), nil
 }
 
 // containsNewAddresses returns true if newAddrs contains addresses that are not
@@ -138,7 +138,7 @@ func containsNewAddresses(newAddrs, oldAddrs []multiaddr.Multiaddr) (bool, []mul
 // getFindPeerHandleResultsFn returns a HandleResultsFn that checks if any
 // peer.ID of the result matches the peer.ID we are looking for. If one does,
 // it writes the result to the resultsChan and returns nil
-func getFindPeerHandleResultsFn(p peer.ID) query.HandleResultFn {
+func getFindPeerHandleResultsFn(p peer.ID) sq.HandleResultFn {
 	return func(ctx context.Context, i []interface{}, m *pb.Message,
 		resultsChan chan interface{}) []interface{} {
 

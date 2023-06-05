@@ -12,10 +12,10 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events/eventqueue/chanqueue"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	"github.com/libp2p/go-libp2p-kad-dht/network"
+	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
 	"github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting"
-	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/query"
+	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
 	"github.com/libp2p/go-libp2p-kad-dht/test/util"
@@ -50,7 +50,7 @@ func client1(ctx context.Context, ai peer.AddrInfo) {
 		panic(err)
 	}
 	rt := simplert.NewSimpleRT(key.PeerKadID(h.ID()), 20)
-	msgEndpoint := network.NewMessageEndpoint(h)
+	msgEndpoint := libp2pendpoint.NewMessageEndpoint(h)
 
 	ai.Addrs = []multiaddr.Multiaddr{multiaddr.StringCast("/ip4/0.0.0.0/tcp/8888")}
 	h.Connect(ctx, ai)
@@ -61,7 +61,8 @@ func client1(ctx context.Context, ai peer.AddrInfo) {
 	eventqueue := chanqueue.NewChanQueue(ctx, 1000)
 	go events.RunLoop(ctx, ep, eventqueue)
 
-	sr, err := simplerouting.NewSimpleRouting(msgEndpoint, rt, eventqueue, *ep)
+	sr, err := simplerouting.NewSimpleRouting(key.PeerKadID(h.ID()),
+		msgEndpoint, rt, eventqueue, *ep)
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +97,7 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 	ai.Addrs = []multiaddr.Multiaddr{multiaddr.StringCast("/ip4/0.0.0.0/tcp/8888")}
 
 	rt := simplert.NewSimpleRT(key.PeerKadID(h.ID()), 20)
-	msgEndpoint := network.NewMessageEndpoint(h)
+	msgEndpoint := libp2pendpoint.NewMessageEndpoint(h)
 
 	h.Connect(ctx, ai)
 	if !rt.AddPeer(ctx, ai.ID) {
@@ -115,7 +116,9 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 		}
 		return tmp
 	}
-	sq.NewSimpleQuery(ctx, key.PeerKadID(p), msg, 1, time.Second, consts.ProtocolDHT, msgEndpoint, rt, eventqueue, *ep, resultChan, successFnc)
+	sq.NewSimpleQuery(ctx, key.PeerKadID(h.ID()), key.PeerKadID(p), msg, 1,
+		time.Second, consts.ProtocolDHT, msgEndpoint, rt, eventqueue, *ep,
+		resultChan, successFnc)
 
 	res := <-resultChan
 	switch r := res.(type) {

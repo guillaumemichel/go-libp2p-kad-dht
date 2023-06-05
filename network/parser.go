@@ -6,6 +6,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/network/pb"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 )
@@ -56,4 +57,29 @@ func FindPeerRequest(p peer.ID) *pb.Message {
 		Type: pb.Message_FIND_NODE,
 		Key:  marshalledPeerid,
 	}
+}
+
+func PeeridsToPbPeers(peers []peer.ID, h host.Host) []*pb.Message_Peer {
+
+	pbPeers := make([]*pb.Message_Peer, 0, len(peers))
+
+	for _, p := range peers {
+		addrs := h.Peerstore().Addrs(p)
+		if len(addrs) == 0 {
+			// if no addresses, don't send peer
+			continue
+		}
+
+		pbAddrs := make([][]byte, len(addrs))
+		// convert multiaddresses to bytes
+		for i, a := range addrs {
+			pbAddrs[i] = a.Bytes()
+		}
+		pbPeers = append(pbPeers, &pb.Message_Peer{
+			Id:         []byte(p),
+			Addrs:      pbAddrs,
+			Connection: pb.Message_ConnectionType(h.Network().Connectedness(p)),
+		})
+	}
+	return pbPeers
 }
