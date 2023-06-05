@@ -13,7 +13,8 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
@@ -89,10 +90,11 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 	_, bin, _ := multibase.Decode(targetBytesID)
 	p := peer.ID(bin)
 	marshalledPeerid, _ := p.MarshalBinary()
-	msg := &pb.Message{
-		Type: pb.Message_FIND_NODE,
+	req := &ipfskadv1.Message{
+		Type: ipfskadv1.Message_FIND_NODE,
 		Key:  marshalledPeerid,
 	}
+	resp := &ipfskadv1.Message{}
 
 	ai.Addrs = []multiaddr.Multiaddr{multiaddr.StringCast("/ip4/0.0.0.0/tcp/8888")}
 
@@ -109,15 +111,15 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 	go events.RunLoop(ctx, ep, eventqueue)
 
 	resultChan := make(chan interface{}, 10)
-	successFnc := func(ctx context.Context, tmp []interface{}, resp *pb.Message, resultChan chan interface{}) []interface{} {
-		if len(resp.CloserPeers) > 0 {
+	successFnc := func(ctx context.Context, tmp []interface{}, resp message.MinKadResponseMessage, resultChan chan interface{}) []interface{} {
+		if len(resp.CloserNodes()) > 0 {
 			resultChan <- "success"
 			return tmp
 		}
 		return tmp
 	}
-	sq.NewSimpleQuery(ctx, key.PeerKadID(p), msg, 1, time.Second, consts.ProtocolDHT,
-		msgEndpoint, rt, eventqueue, *ep, resultChan, successFnc)
+	sq.NewSimpleQuery(ctx, key.PeerKadID(p), req, resp, 1, time.Second,
+		consts.ProtocolDHT, msgEndpoint, rt, eventqueue, *ep, resultChan, successFnc)
 
 	res := <-resultChan
 	switch r := res.(type) {

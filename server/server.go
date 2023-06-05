@@ -5,7 +5,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
+	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	rt "github.com/libp2p/go-libp2p-kad-dht/routingtable"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -33,12 +33,12 @@ func NewServer(ctx context.Context, h host.Host, rt rt.RoutingTable,
 	}
 }
 
-func HandleRequest(ctx context.Context, s *Server, req *pb.Message, stream network.Stream) {
+func HandleRequest(ctx context.Context, s *Server, req *message.Message, stream network.Stream) {
 	ctx, span := internal.StartSpan(ctx, "HandleRequest")
 	defer span.End()
 
 	switch req.GetType() {
-	case pb.Message_FIND_NODE:
+	case message.Message_FIND_NODE:
 		HandleFindNodeRequest(ctx, s, req, stream)
 	default:
 		span.AddEvent("unknown request type")

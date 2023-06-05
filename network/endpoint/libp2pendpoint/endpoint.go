@@ -7,8 +7,10 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	laddr "github.com/libp2p/go-libp2p-kad-dht/network/address/libp2p"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -36,7 +38,15 @@ func NewMessageEndpoint(host host.Host) *Libp2pEndpoint {
 	}
 }
 
-func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context, p peer.ID, reportFn endpoint.DialReportFn) {
+func getPeerID(id address.NodeID) peer.ID {
+	if p, ok := id.(peer.ID); ok {
+		return p
+	}
+	panic("invalid peer id")
+}
+
+func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context, id address.NodeID, reportFn endpoint.DialReportFn) {
+	p := getPeerID(id)
 	go func() {
 		ctx, span := internal.StartSpan(ctx, "Libp2pEndpoint.AsyncDialAndReport", trace.WithAttributes(
 			attribute.String("PeerID", p.String()),
@@ -58,7 +68,9 @@ func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context, p pee
 	}()
 }
 
-func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, p peer.ID) error {
+func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
+	p := getPeerID(id)
+
 	_, span := internal.StartSpan(ctx, "Libp2pEndpoint.DialPeer", trace.WithAttributes(
 		attribute.String("PeerID", p.String()),
 	))
@@ -80,7 +92,12 @@ func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, p peer.ID) erro
 	return nil
 }
 
-func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ai peer.AddrInfo, ttl time.Duration) {
+func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(na address.NetworkAddress, ttl time.Duration) {
+	ai, ok := na.(laddr.Libp2pAddr)
+	if !ok {
+		panic("invalid peer.AddrInfo")
+	}
+
 	// Don't add addresses for self or our connected peers. We have better ones.
 	if ai.ID == msgEndpoint.host.ID() ||
 		msgEndpoint.host.Network().Connectedness(ai.ID) == network.Connected {
@@ -89,7 +106,20 @@ func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ai peer.AddrInfo, ttl tim
 	msgEndpoint.host.Peerstore().AddAddrs(ai.ID, ai.Addrs, ttl)
 }
 
-func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, p peer.ID, req *pb.Message, proto protocol.ID) (*pb.Message, error) {
+func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.NodeID, req message.MinKadRequestMessage,
+	resp message.MinKadResponseMessage, proto protocol.ID) error {
+
+	protoReq, ok := req.(message.ProtoKadRequestMessage)
+	if !ok {
+		panic("Libp2pEndpoint requires ProtoKadRequestMessage")
+	}
+	protoResp, ok := resp.(message.ProtoKadResponseMessage)
+	if !ok {
+		panic("Libp2pEndpoint requires ProtoKadResponseMessage")
+	}
+
+	p := getPeerID(id)
+
 	ctx, span := internal.StartSpan(ctx, "Libp2pEndpoint.SendRequest", trace.WithAttributes(
 		attribute.String("PeerID", p.String()),
 	))
@@ -98,30 +128,31 @@ func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, p peer.ID, r
 	s, err := msgEndpoint.host.NewStream(ctx, p, proto)
 	if err != nil {
 		span.RecordError(err)
-		return nil, err
+		return err
 	}
 	defer s.Close()
 
-	err = WriteMsg(s, req)
+	err = WriteMsg(s, protoReq)
 	if err != nil {
 		span.RecordError(err)
-		return nil, err
+		return err
 	}
 
-	resp := &pb.Message{}
-	err = ReadMsg(s, resp)
+	err = ReadMsg(s, protoResp)
 	if err != nil {
 		span.RecordError(err)
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
-func (msgEndpoint *Libp2pEndpoint) Connectedness(p peer.ID) network.Connectedness {
+func (msgEndpoint *Libp2pEndpoint) Connectedness(id address.NodeID) network.Connectedness {
+	p := getPeerID(id)
 	return msgEndpoint.host.Network().Connectedness(p)
 }
 
-func (msgEndpoint *Libp2pEndpoint) PeerInfo(p peer.ID) peer.AddrInfo {
+func (msgEndpoint *Libp2pEndpoint) PeerInfo(id address.NodeID) peer.AddrInfo {
+	p := getPeerID(id)
 	return msgEndpoint.host.Peerstore().PeerInfo(p)
 }
 

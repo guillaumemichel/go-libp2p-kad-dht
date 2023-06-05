@@ -1,10 +1,11 @@
 package simplequery
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 )
 
 type peerStatus uint8
@@ -19,7 +20,7 @@ const (
 type peerInfo struct {
 	distance key.KadKey
 	status   peerStatus
-	id       peer.ID
+	id       address.NodeID
 
 	next *peerInfo
 }
@@ -42,13 +43,19 @@ func newPeerList(target key.KadKey) *peerList {
 
 // normally peers should already be ordered with distance to target, but we
 // sort them just in case
-func addToPeerlist(pl *peerList, peers []peer.ID) {
+func addToPeerlist(pl *peerList, ids []address.NodeID) {
 
 	// linked list of new peers sorted by distance to target
-	newHead := sliceToPeerInfos(pl.target, peers)
+	newHead := sliceToPeerInfos(pl.target, ids)
+	if newHead == nil {
+		fmt.Println(ids)
+		return
+	}
+
+	oldHead := pl.closest
 
 	// if the list is empty, define first new peer as closest
-	if pl.closest == nil {
+	if oldHead == nil {
 		pl.closest = newHead
 		pl.closestQueued = newHead
 
@@ -62,8 +69,6 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 	var prev *peerInfo
 	currOld := true
 	closestQueuedReached := false
-
-	oldHead := pl.closest
 
 	r := key.Compare(oldHead.distance, newHead.distance)
 	if r > 0 {
@@ -130,12 +135,12 @@ func addToPeerlist(pl *peerList, peers []peer.ID) {
 	}
 }
 
-func sliceToPeerInfos(target key.KadKey, peers []peer.ID) *peerInfo {
+func sliceToPeerInfos(target key.KadKey, ids []address.NodeID) *peerInfo {
 
 	// create a new list of peerInfo
-	newPeers := make([]*peerInfo, 0, len(peers))
-	for _, p := range peers {
-		newPeer := addrInfoToPeerInfo(target, p)
+	newPeers := make([]*peerInfo, 0, len(ids))
+	for _, id := range ids {
+		newPeer := addrInfoToPeerInfo(target, id)
 		if newPeer != nil {
 			newPeers = append(newPeers, newPeer)
 		}
@@ -162,20 +167,20 @@ func sliceToPeerInfos(target key.KadKey, peers []peer.ID) *peerInfo {
 	return newPeers[0]
 }
 
-func addrInfoToPeerInfo(target key.KadKey, p peer.ID) *peerInfo {
-	if p == "" {
+func addrInfoToPeerInfo(target key.KadKey, id address.NodeID) *peerInfo {
+	if id == nil || id.String() == "" {
 		return nil
 	}
 	return &peerInfo{
-		distance: key.Xor(target, key.PeerKadID(p)),
+		distance: key.Xor(target, address.KadID(id)),
 		status:   queued,
-		id:       p,
+		id:       id,
 	}
 }
 
-func updatePeerStatusInPeerlist(pl *peerList, p peer.ID, newStatus peerStatus) {
+func updatePeerStatusInPeerlist(pl *peerList, id address.NodeID, newStatus peerStatus) {
 	curr := pl.closest
-	for curr != nil && curr.id != p {
+	for curr != nil && curr.id.String() != id.String() {
 		curr = curr.next
 	}
 	if curr != nil {
@@ -186,7 +191,7 @@ func updatePeerStatusInPeerlist(pl *peerList, p peer.ID, newStatus peerStatus) {
 
 			for curr := pl.closest; curr != nil; curr = curr.next {
 				// if a peer is set to queued, we may need to update closestQueued
-				if curr.id == p {
+				if curr.id.String() == id.String() {
 					pl.closestQueued = curr
 					break
 				} else if curr == pl.closestQueued {
@@ -203,9 +208,9 @@ func updatePeerStatusInPeerlist(pl *peerList, p peer.ID, newStatus peerStatus) {
 	}
 }
 
-func popClosestQueued(pl *peerList) peer.ID {
+func popClosestQueued(pl *peerList) address.NodeID {
 	if pl.closestQueued == nil {
-		return peer.ID("")
+		return nil
 	}
 	pi := pl.closestQueued
 	pi.status = waiting

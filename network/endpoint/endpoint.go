@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -14,13 +15,13 @@ import (
 type DialReportFn func(context.Context, bool)
 
 type Endpoint interface {
-	AsyncDialAndReport(ctx context.Context, p peer.ID, reportFn DialReportFn)
-	DialPeer(ctx context.Context, p peer.ID) error
-	MaybeAddToPeerstore(ai peer.AddrInfo, ttl time.Duration)
-	SendRequest(ctx context.Context, p peer.ID, req *pb.Message, proto protocol.ID) (*pb.Message, error)
+	AsyncDialAndReport(context.Context, address.NodeID, DialReportFn)
+	DialPeer(context.Context, address.NodeID) error
+	MaybeAddToPeerstore(address.NetworkAddress, time.Duration)
+	SendRequest(context.Context, address.NodeID, message.MinKadRequestMessage, message.MinKadResponseMessage, protocol.ID) error
 
 	// Peerstore functions
 	KadID() key.KadKey
-	Connectedness(p peer.ID) network.Connectedness
-	PeerInfo(p peer.ID) peer.AddrInfo
+	Connectedness(address.NodeID) network.Connectedness
+	PeerInfo(address.NodeID) peer.AddrInfo
 }

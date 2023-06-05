@@ -1,19 +1,12 @@
 package routing
 
 import (
-	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 )
 
 type Routing interface {
-	FindClosestPeers(p peer.ID) ([]peer.ID, error)
-	// FindProviders(cid.Cid) ([]peer.ID, error)
+	FindClosestPeers(key.KadKey) ([]address.NodeID, error)
 
 	NClosestPeers() int
-}
-
-type Query interface {
-}
-
-func FindPeer(q Query, p peer.ID) {
-
 }

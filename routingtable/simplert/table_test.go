@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -113,9 +114,9 @@ func TestFindPeer(t *testing.T) {
 	rt := NewSimpleRT(key0, 2)
 	rt.addPeer(ctx, key1, p)
 	require.Equal(t, p, rt.Find(key1))
-	require.Equal(t, peer.ID(""), rt.Find(key2))
+	require.Nil(t, rt.Find(key2))
 	require.True(t, rt.RemovePeer(ctx, key1))
-	require.Equal(t, peer.ID(""), rt.Find(key1))
+	require.Nil(t, rt.Find(key1))
 }
 
 func TestNearestPeers(t *testing.T) {
@@ -141,11 +142,11 @@ func TestNearestPeers(t *testing.T) {
 	rt.addPeer(ctx, key10, peerIds[10])
 	rt.addPeer(ctx, key11, peerIds[11])
 
-	// find the 2 nearest peers to key0
-	peers := rt.NearestPeers(ctx, key0, 10)
+	// find the 5 nearest peers to key0
+	peers := rt.NearestPeers(ctx, key0, bucketSize)
 	require.Equal(t, bucketSize, len(peers))
 
-	expectedOrder := []peer.ID{peerIds[9], peerIds[8], peerIds[7], peerIds[10], peerIds[11]}
+	expectedOrder := []address.NodeID{peerIds[9], peerIds[8], peerIds[7], peerIds[10], peerIds[11]}
 	require.Equal(t, expectedOrder, peers)
 
 	peers = rt.NearestPeers(ctx, key11, 2)

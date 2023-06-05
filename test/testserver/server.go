@@ -9,7 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	endpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
+	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
 	"github.com/libp2p/go-libp2p-kad-dht/test/util"
@@ -60,8 +60,8 @@ func client(ctx context.Context, serv peer.AddrInfo) {
 	_, bin, _ := multibase.Decode(targetBytesID)
 	p := peer.ID(bin)
 	marshalledPeerid, _ := p.MarshalBinary()
-	msg := &pb.Message{
-		Type: pb.Message_FIND_NODE,
+	msg := &message.Message{
+		Type: message.Message_FIND_NODE,
 		Key:  marshalledPeerid,
 	}
 
@@ -82,7 +82,7 @@ func client(ctx context.Context, serv peer.AddrInfo) {
 	if err != nil {
 		panic(err)
 	}
-	msg = &pb.Message{}
+	msg = &message.Message{}
 	err = endpoint.ReadMsg(stream, msg)
 	if err != nil {
 		panic(err)

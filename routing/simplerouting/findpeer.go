@@ -5,8 +5,8 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1/pb"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	libp2pnet "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -37,7 +37,8 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	}
 
 	kadid := key.PeerKadID(p)
-	msg := message.FindPeerRequest(p)
+	req := ipfskadv1.FindPeerRequest(p)
+	resp := &ipfskadv1.Message{}
 
 	resultsChan := make(chan interface{}) // peer.AddrInfo
 	handleResultsFn := getFindPeerHandleResultsFn(p)
@@ -47,7 +48,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	defer cancel()
 
 	// create the query and add appropriate events to the event queue
-	sq.NewSimpleQuery(ctx, kadid, msg, r.queryConcurrency, r.queryTimeout,
+	sq.NewSimpleQuery(ctx, kadid, req, resp, r.queryConcurrency, r.queryTimeout,
 		r.protocolID, r.msgEndpoint, r.rt, r.eventQueue, r.eventPlanner,
 		resultsChan, handleResultsFn)
 
@@ -139,17 +140,24 @@ func containsNewAddresses(newAddrs, oldAddrs []multiaddr.Multiaddr) (bool, []mul
 // peer.ID of the result matches the peer.ID we are looking for. If one does,
 // it writes the result to the resultsChan and returns nil
 func getFindPeerHandleResultsFn(p peer.ID) sq.HandleResultFn {
-	return func(ctx context.Context, i []interface{}, m *pb.Message,
+	return func(ctx context.Context, i []interface{}, m message.MinKadResponseMessage,
 		resultsChan chan interface{}) []interface{} {
 
-		for _, ai := range message.ParsePeers(ctx, m.GetCloserPeers()) {
-			if ai.ID == p {
+		ctx, span := internal.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")
+		defer span.End()
+
+		for _, na := range m.CloserNodes() {
+			if na.NodeID().String() == p.String() {
 				// we found the peer we were looking for
+
+				// convert NodeID to PeerID as we need to return a PeerID to the caller
+				peerid := na.NodeID().(peer.ID)
+				span.AddEvent("Found peer", trace.WithAttributes(attribute.String("PeerID", peerid.String())))
 
 				select {
 				case <-ctx.Done():
 					return nil
-				case resultsChan <- ai:
+				case resultsChan <- peerid:
 				}
 
 				break

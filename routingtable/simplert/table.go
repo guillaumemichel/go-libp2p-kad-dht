@@ -7,22 +7,13 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
-	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-/*
-type RoutingTable interface {
-	AddPeer(peer.AddrInfo) bool
-	RemovePeer(key.KadKey) bool
-	NearestPeers(key.KadKey, int) []peer.ID
-	Find(key.KadKey) peer.ID
-}
-*/
-
 type peerInfo struct {
-	id    peer.ID
+	id    address.NodeID
 	kadId key.KadKey
 }
 
@@ -59,14 +50,14 @@ func (rt *SimpleRT) SizeOfBucket(bucketId int) int {
 	return len(rt.buckets[bucketId])
 }
 
-func (rt *SimpleRT) AddPeer(ctx context.Context, p peer.ID) bool {
-	return rt.addPeer(ctx, key.PeerKadID(p), p)
+func (rt *SimpleRT) AddPeer(ctx context.Context, id address.NodeID) bool {
+	return rt.addPeer(ctx, address.KadID(id), id)
 }
 
-func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bool {
+func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, id address.NodeID) bool {
 	_, span := internal.StartSpan(ctx, "simplert.addPeer", trace.WithAttributes(
 		attribute.String("KadID", kadId.Hex()),
-		attribute.Stringer("PeerID", p),
+		attribute.Stringer("PeerID", id),
 	))
 	defer span.End()
 
@@ -89,13 +80,13 @@ func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bo
 		}
 
 		// add new peer to bucket
-		rt.buckets[bid] = append(rt.buckets[bid], peerInfo{p, kadId})
+		rt.buckets[bid] = append(rt.buckets[bid], peerInfo{id, kadId})
 		span.AddEvent("peer added to bucket " + strconv.Itoa(bid))
 		return true
 	}
 	if len(rt.buckets[lastBucketId]) < rt.bucketSize {
 		// last bucket is not full, add new peer
-		rt.buckets[lastBucketId] = append(rt.buckets[lastBucketId], peerInfo{p, kadId})
+		rt.buckets[lastBucketId] = append(rt.buckets[lastBucketId], peerInfo{id, kadId})
 		span.AddEvent("peer added to bucket " + strconv.Itoa(lastBucketId))
 		return true
 	}
@@ -133,7 +124,7 @@ func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, p peer.ID) bo
 
 	newBid := rt.BucketIdForKey(kadId)
 	// add new peer to appropraite bucket
-	rt.buckets[newBid] = append(rt.buckets[newBid], peerInfo{p, kadId})
+	rt.buckets[newBid] = append(rt.buckets[newBid], peerInfo{id, kadId})
 	span.AddEvent("peer added to bucket " + strconv.Itoa(newBid))
 	return true
 }
@@ -169,19 +160,19 @@ func (rt *SimpleRT) RemovePeer(ctx context.Context, kadId key.KadKey) bool {
 	return false
 }
 
-func (rt *SimpleRT) Find(kadId key.KadKey) peer.ID {
+func (rt *SimpleRT) Find(kadId key.KadKey) address.NodeID {
 	bid := rt.BucketIdForKey(kadId)
 	for _, p := range rt.buckets[bid] {
 		if p.kadId == kadId {
 			return p.id
 		}
 	}
-	return peer.ID("")
+	return nil
 }
 
 // TODO: not exactly working as expected
 // returns min(n, bucketSize) peers from the bucket matching the given key
-func (rt *SimpleRT) NearestPeers(ctx context.Context, kadId key.KadKey, n int) []peer.ID {
+func (rt *SimpleRT) NearestPeers(ctx context.Context, kadId key.KadKey, n int) []address.NodeID {
 	_, span := internal.StartSpan(ctx, "simplert.nearestPeers", trace.WithAttributes(
 		attribute.String("KadID", kadId.Hex()),
 		attribute.Int("n", n),
@@ -216,7 +207,7 @@ func (rt *SimpleRT) NearestPeers(ctx context.Context, kadId key.KadKey, n int) [
 		}
 		return false
 	})
-	pids := make([]peer.ID, min(n, len(peers)))
+	pids := make([]address.NodeID, min(n, len(peers)))
 	for i := 0; i < min(n, len(peers)); i++ {
 		pids[i] = peers[i].id
 	}
