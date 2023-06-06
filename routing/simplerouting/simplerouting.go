@@ -3,8 +3,7 @@ package simplerouting
 import (
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/events"
-	eq "github.com/libp2p/go-libp2p-kad-dht/events/eventqueue"
+	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
@@ -16,8 +15,7 @@ type SimpleRouting struct {
 	msgEndpoint endpoint.Endpoint
 	rt          routingtable.RoutingTable
 
-	eventQueue   eq.EventQueue
-	eventPlanner events.EventPlanner
+	sched scheduler.Scheduler
 
 	queryConcurrency      int
 	queryTimeout          time.Duration
@@ -29,7 +27,7 @@ type SimpleRouting struct {
 }
 
 func NewSimpleRouting(self key.KadKey, msgEndpoint endpoint.Endpoint,
-	rt routingtable.RoutingTable, queue eq.EventQueue, ep events.EventPlanner,
+	rt routingtable.RoutingTable, sched scheduler.Scheduler,
 	options ...Option) (*SimpleRouting, error) {
 
 	var cfg Config
@@ -43,8 +41,7 @@ func NewSimpleRouting(self key.KadKey, msgEndpoint endpoint.Endpoint,
 	return &SimpleRouting{
 		msgEndpoint:           msgEndpoint,
 		rt:                    rt,
-		eventQueue:            queue,
-		eventPlanner:          ep,
+		sched:                 sched,
 		queryConcurrency:      cfg.QueryConcurrency,
 		queryTimeout:          cfg.QueryTimeout,
 		maxConcurrentRequests: cfg.MaxConcurrentRequests,

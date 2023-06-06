@@ -1,15 +1,6 @@
 package events
 
-import (
-	"context"
-	"sync"
-
-	eq "github.com/libp2p/go-libp2p-kad-dht/events/eventqueue"
-	"github.com/libp2p/go-libp2p-kad-dht/events/eventqueue/fifo"
-
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-)
-
+/*
 // types of Events:
 // 1. Client Request
 //   a) FindNode
@@ -97,3 +88,4 @@ func handleEvent(ctx context.Context, e interface{}) {
 		panic("unknown event type") // TODO: handle this
 	}
 }
+*/

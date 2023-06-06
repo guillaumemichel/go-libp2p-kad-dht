@@ -49,8 +49,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 
 	// create the query and add appropriate events to the event queue
 	sq.NewSimpleQuery(ctx, kadid, req, resp, r.queryConcurrency, r.queryTimeout,
-		r.protocolID, r.msgEndpoint, r.rt, r.eventQueue, r.eventPlanner,
-		resultsChan, handleResultsFn)
+		r.protocolID, r.msgEndpoint, r.rt, r.sched, resultsChan, handleResultsFn)
 
 	// only one dial runs at a time to ensure sequentiality
 	dialRunning := false
@@ -140,8 +139,8 @@ func containsNewAddresses(newAddrs, oldAddrs []multiaddr.Multiaddr) (bool, []mul
 // peer.ID of the result matches the peer.ID we are looking for. If one does,
 // it writes the result to the resultsChan and returns nil
 func getFindPeerHandleResultsFn(p peer.ID) sq.HandleResultFn {
-	return func(ctx context.Context, i []interface{}, m message.MinKadResponseMessage,
-		resultsChan chan interface{}) []interface{} {
+	return func(ctx context.Context, i sq.QueryState, m message.MinKadResponseMessage,
+		resultsChan chan interface{}) sq.QueryState {
 
 		ctx, span := internal.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")
 		defer span.End()

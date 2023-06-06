@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	rt "github.com/libp2p/go-libp2p-kad-dht/routingtable"
@@ -17,18 +17,18 @@ type Server struct {
 	ctx          context.Context
 	RoutingTable rt.RoutingTable
 	host         host.Host
-	em           *events.EventsManager
+	sched        scheduler.Scheduler
 
 	serverProtocols []protocol.ID
 }
 
 func NewServer(ctx context.Context, h host.Host, rt rt.RoutingTable,
-	em *events.EventsManager, serverProtocols []protocol.ID) *Server {
+	sched scheduler.Scheduler, serverProtocols []protocol.ID) *Server {
 	return &Server{
 		ctx:             ctx,
 		RoutingTable:    rt,
 		host:            h,
-		em:              em,
+		sched:           sched,
 		serverProtocols: serverProtocols,
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/libp2p/go-libp2p-kad-dht/events"
 	endpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	net "github.com/libp2p/go-libp2p/core/network"
@@ -23,8 +22,7 @@ func (s *Server) DefaultStreamHandler(stream net.Stream) {
 		stream.Reset()
 		return
 	}
-	events.NewEvent(s.ctx, s.em, func(ctx context.Context) {
+	s.sched.EnqueueAction(s.ctx, func(ctx context.Context) {
 		HandleRequest(ctx, s, req, stream)
 	})
-
 }

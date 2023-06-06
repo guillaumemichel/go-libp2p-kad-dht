@@ -7,16 +7,17 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
-	"github.com/libp2p/go-libp2p-kad-dht/events"
-	eq "github.com/libp2p/go-libp2p-kad-dht/events/eventqueue"
+	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	message "github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
+
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -31,7 +32,9 @@ var (
 	QueuedPeersPeerstoreTTL = peerstore.TempAddrTTL
 )
 
-type HandleResultFn func(context.Context, []interface{}, message.MinKadResponseMessage, chan interface{}) []interface{}
+type QueryState []interface{}
+
+type HandleResultFn func(context.Context, QueryState, message.MinKadResponseMessage, chan interface{}) QueryState
 
 type SimpleQuery struct {
 	ctx         context.Context
@@ -45,15 +48,13 @@ type SimpleQuery struct {
 
 	msgEndpoint endpoint.Endpoint
 	rt          routingtable.RoutingTable
-
-	eventQueue   eq.EventQueue
-	eventPlanner events.EventPlanner
+	sched       scheduler.Scheduler
 
 	inflightRequests int // requests that are either in flight or scheduled
 	peerlist         *peerList
 
 	// success condition
-	state          []interface{}
+	state          QueryState
 	resultsChan    chan interface{}
 	handleResultFn HandleResultFn
 }
@@ -68,7 +69,7 @@ type SimpleQuery struct {
 func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadRequestMessage,
 	resp message.MinKadResponseMessage, concurrency int, timeout time.Duration,
 	proto protocol.ID, msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
-	queue eq.EventQueue, ep events.EventPlanner, resultsChan chan interface{},
+	sched scheduler.Scheduler, resultsChan chan interface{},
 	handleResultFn HandleResultFn) *SimpleQuery {
 
 	ctx, span := internal.StartSpan(ctx, "SimpleQuery.NewSimpleQuery",
@@ -80,7 +81,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadReq
 	peerlist := newPeerList(kadid)
 	addToPeerlist(peerlist, closestPeers)
 
-	query := &SimpleQuery{
+	q := &SimpleQuery{
 		ctx:              ctx,
 		req:              req,
 		resp:             resp,
@@ -92,9 +93,8 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadReq
 		rt:               rt,
 		inflightRequests: 0,
 		peerlist:         peerlist,
-		eventQueue:       queue,
-		eventPlanner:     ep,
-		state:            []interface{}{},
+		sched:            sched,
+		state:            QueryState{},
 		resultsChan:      resultsChan,
 		handleResultFn:   handleResultFn,
 	}
@@ -106,12 +106,12 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadReq
 	}
 	for i := 0; i < requestsEvents; i++ {
 		// add concurrency requests to the event queue
-		query.eventQueue.Enqueue(query.newRequest)
-		span.AddEvent("Enqueued SimpleQuery.newRequest. Queue size: " + strconv.Itoa(int(query.eventQueue.Size())))
+		q.sched.EnqueueAction(ctx, q.newRequest)
 	}
-	query.inflightRequests = requestsEvents
+	span.AddEvent("Enqueued " + strconv.Itoa(requestsEvents) + " SimpleQuery.newRequest")
+	q.inflightRequests = requestsEvents
 
-	return query
+	return q
 }
 
 func (q *SimpleQuery) checkIfDone() error {
@@ -154,7 +154,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	go q.sendRequest(ctx, id)
 
 	// add timeout to scheduler
-	events.ScheduleAction(ctx, &q.eventPlanner, q.timeout, func(ctx context.Context) {
+	scheduler.ScheduleActionIn(ctx, q.sched, q.timeout, func(ctx context.Context) {
 		q.requestError(ctx, id, errors.New("request timeout ("+q.timeout.String()+")"))
 	})
 }
@@ -170,7 +170,7 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, id address.NodeID) {
 
 	if err := q.msgEndpoint.DialPeer(ctx, id); err != nil {
 		span.AddEvent("peer dial failed")
-		q.eventQueue.Enqueue(func(ctx context.Context) {
+		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
 			q.requestError(ctx, id, err)
 		})
 		return
@@ -179,17 +179,17 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, id address.NodeID) {
 	err := q.msgEndpoint.SendRequest(ctx, id, q.req, q.resp, q.proto)
 	if err != nil {
 		span.AddEvent("request failed")
-		q.eventQueue.Enqueue(func(ctx context.Context) {
+		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
 			q.requestError(ctx, id, err)
 		})
 		return
 	}
 	span.AddEvent("got a response")
 
-	q.eventQueue.Enqueue(func(ctx context.Context) {
+	q.sched.EnqueueAction(ctx, func(ctx context.Context) {
 		q.handleResponse(ctx, id, q.resp)
 	})
-	span.AddEvent("Enqueued SimpleQuery.handleResponse. Queue size: " + strconv.Itoa(int(q.eventQueue.Size())))
+	span.AddEvent("Enqueued SimpleQuery.handleResponse")
 }
 
 func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, resp message.MinKadResponseMessage) {
@@ -245,12 +245,11 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 
 	for i := 0; i < newRequestsToSend; i++ {
 		// add new pending request(s) for this query to eventqueue
-		q.eventQueue.Enqueue(q.newRequest)
+		q.sched.EnqueueAction(ctx, q.newRequest)
 
 	}
 	span.AddEvent("Enqueued " + strconv.Itoa(newRequestsToSend) +
-		" SimpleQuery.newRequest. Queue size: " +
-		strconv.Itoa(int(q.eventQueue.Size())))
+		" SimpleQuery.newRequest")
 
 }
 
@@ -273,5 +272,5 @@ func (q *SimpleQuery) requestError(ctx context.Context, id address.NodeID, err e
 	updatePeerStatusInPeerlist(q.peerlist, id, unreachable)
 
 	// add pending request for this query to eventqueue
-	q.eventQueue.Enqueue(q.newRequest)
+	q.sched.EnqueueAction(ctx, q.newRequest)
 }

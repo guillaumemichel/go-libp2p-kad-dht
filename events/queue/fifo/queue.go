@@ -4,12 +4,13 @@ import (
 	"context"
 	"sync"
 
+	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 )
 
 type element struct {
 	next *element
-	data interface{}
+	data events.Action
 }
 
 type Queue struct {
@@ -29,7 +30,7 @@ func NewQueue(ctx context.Context) *Queue {
 	}
 }
 
-func (q *Queue) Enqueue(e interface{}) {
+func (q *Queue) Enqueue(e events.Action) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -52,7 +53,7 @@ func (q *Queue) Enqueue(e interface{}) {
 	}
 }
 
-func (q *Queue) Dequeue() interface{} {
+func (q *Queue) Dequeue() events.Action {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 

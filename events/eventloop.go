@@ -1,13 +1,6 @@
 package events
 
-import (
-	"context"
-	"fmt"
-
-	eq "github.com/libp2p/go-libp2p-kad-dht/events/eventqueue"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-)
-
+/*
 func RunLoop(ctx context.Context, ep *EventPlanner, queue eq.EventQueue) {
 	ctx, span := internal.StartSpan(ctx, "MainEventLoop")
 	defer span.End()
@@ -57,3 +50,4 @@ func RunEvent(ctx context.Context, event interface{}) {
 	}
 
 }
+*/

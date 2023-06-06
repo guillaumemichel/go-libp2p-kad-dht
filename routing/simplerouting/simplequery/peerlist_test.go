@@ -18,7 +18,7 @@ func TestAddPeers(t *testing.T) {
 
 	// add initial peers
 	nPeers := 3
-	peerids := make([]peer.ID, nPeers+1)
+	peerids := make([]address.NodeID, nPeers+1)
 	for i := 0; i < nPeers; i++ {
 		peerids[i] = peer.ID(byte(i))
 	}
@@ -30,13 +30,8 @@ func TestAddPeers(t *testing.T) {
 	// peerids[2]: dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986
 	// peerids[3]: 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
 
-	nodeIds := make([]address.NodeID, len(peerids))
-	for i, id := range peerids {
-		nodeIds[i] = id
-	}
-
 	// add 4 peers (incl. 1 duplicate)
-	addToPeerlist(pl, nodeIds)
+	addToPeerlist(pl, peerids)
 
 	require.Equal(t, nPeers, pl.queuedCount)
 
@@ -58,7 +53,7 @@ func TestAddPeers(t *testing.T) {
 
 	// add more peers
 	nPeers = 5
-	newPeerids := make([]peer.ID, nPeers+2)
+	newPeerids := make([]address.NodeID, nPeers+2)
 	for i := 0; i < nPeers; i++ {
 		newPeerids[i] = peer.ID(byte(10 + i))
 	}
@@ -74,18 +69,13 @@ func TestAddPeers(t *testing.T) {
 	// newPeerids[5]: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
 	// newPeerids[6]: 4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
 
-	newNodeIds := make([]address.NodeID, len(newPeerids))
-	for i, id := range newPeerids {
-		newNodeIds[i] = id
-	}
-
 	// add 7 peers (incl. 2 duplicates)
-	addToPeerlist(pl, newNodeIds)
+	addToPeerlist(pl, newPeerids)
 
 	require.Equal(t, 8, pl.queuedCount)
 
 	// order is now as follows:
-	order := []peer.ID{newPeerids[0], peerids[1], newPeerids[4], peerids[0], newPeerids[3],
+	order := []address.NodeID{newPeerids[0], peerids[1], newPeerids[4], peerids[0], newPeerids[3],
 		peerids[2], newPeerids[1], newPeerids[2]}
 
 	curr = pl.closest
