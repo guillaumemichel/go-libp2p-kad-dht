@@ -7,12 +7,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
-)
-
-const (
-	// MAGIC: the SimplePlanner will wake up at most once per hour, even if there
-	// is nothing to do.
-	UnlimitedSleepDuration = time.Hour
+	"github.com/libp2p/go-libp2p-kad-dht/internal/util"
 )
 
 type SimplePlanner struct {
@@ -34,7 +29,6 @@ func NewSimplePlanner(clk clock.Clock) *SimplePlanner {
 }
 
 func (p *SimplePlanner) ScheduleAction(ctx context.Context, t time.Time, a events.Action) {
-
 	if p.NextAction == nil {
 		p.NextAction = &timedAction{action: a, time: t}
 		return
@@ -77,7 +71,7 @@ func (p *SimplePlanner) PopOverdueActions(ctx context.Context) []events.Action {
 	var overdue []events.Action
 	now := p.Clock.Now()
 	curr := p.NextAction
-	for curr != nil && curr.time.Before(now) {
+	for curr != nil && (curr.time.Before(now) || curr.time == now) {
 		overdue = append(overdue, curr.action)
 		curr = curr.next
 	}
@@ -85,40 +79,9 @@ func (p *SimplePlanner) PopOverdueActions(ctx context.Context) []events.Action {
 	return overdue
 }
 
-/*
-func RunOverdueActions(ctx context.Context, p *SimplePlanner) time.Time {
-	ctx, span := internal.StartSpan(ctx, "events.RunOverdueActions")
-	defer span.End()
-
-	now := p.Clock.Now()
-	for p.NextAction != nil && p.NextAction.time.Before(now) {
-		switch e := p.NextAction.action.(type) {
-		case func(context.Context):
-			e(ctx)
-		default:
-		}
-
-		p.NextAction = p.NextAction.next
-
-		now = p.Clock.Now()
-	}
-
+func (p *SimplePlanner) NextActionTime(context.Context) time.Time {
 	if p.NextAction == nil {
-		span.AddEvent("no further actions to run")
-		return time.Time{}
+		return util.MaxTime
 	}
 	return p.NextAction.time
 }
-
-func TimeUntilNextWakeUp(p *SimplePlanner) time.Duration {
-	if p.NextAction == nil {
-		return UnlimitedSleepDuration
-	}
-
-	now := p.Clock.Now()
-	if p.NextAction.time.Before(now) {
-		return 0
-	}
-	return p.NextAction.time.Sub(now)
-}
-*/

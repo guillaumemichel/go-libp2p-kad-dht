@@ -10,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/events/eventqueue/chanqueue"
+	sp "github.com/libp2p/go-libp2p-kad-dht/events/planner/simpleplanner"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
@@ -38,11 +39,12 @@ var (
 )
 
 func lookupTest(ctx context.Context) {
-	ai := serv(ctx)
-	client1(ctx, ai)
+	clk := clock.New()
+	ai := serv(ctx, clk)
+	client1(ctx, ai, clk)
 }
 
-func client1(ctx context.Context, ai peer.AddrInfo) {
+func client1(ctx context.Context, ai peer.AddrInfo, clk clock.Clock) {
 	ctx, span := internal.StartSpan(ctx, "simplequerytest.client1")
 	defer span.End()
 
@@ -58,7 +60,7 @@ func client1(ctx context.Context, ai peer.AddrInfo) {
 	if !rt.AddPeer(ctx, ai.ID) {
 		log.Println("failed to add peer")
 	}
-	ep := events.NewEventPlanner(clock.NewMock())
+	ep := sp.NewSimplePlanner(clk)
 	eventqueue := chanqueue.NewChanQueue(ctx, 1000)
 	go events.RunLoop(ctx, ep, eventqueue)
 

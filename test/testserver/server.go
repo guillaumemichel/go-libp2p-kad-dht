@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	endpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
@@ -27,20 +28,21 @@ var (
 
 func ServerTest(ctx context.Context) {
 	newCtx, span := internal.StartSpan(ctx, "ServerTest")
-	ai := serv(newCtx)
-	client(newCtx, ai)
+	clk := clock.New()
+	ai := serv(newCtx, clk)
+	client(newCtx, ai, clk)
 	span.End()
 }
 
-func serv(ctx context.Context) peer.AddrInfo {
+func serv(ctx context.Context, clk clock.Clock) peer.AddrInfo {
 	h, err := util.Libp2pHost(ctx, "8888")
 	if err != nil {
 		panic(err)
 	}
 
-	em := events.NewEventsManager(ctx)
+	sched := simplescheduler.NewSimpleScheduler(ctx, clk)
 	rt := simplert.NewSimpleRT(key.PeerKadID(h.ID()), 20)
-	serv := server.NewServer(ctx, h, rt, em, []protocol.ID{consts.ProtocolDHT})
+	serv := server.NewServer(ctx, h, rt, sched, []protocol.ID{consts.ProtocolDHT})
 	server.SetStreamHandler(serv, serv.DefaultStreamHandler, consts.ProtocolDHT)
 
 	//p := peer.ID("12D3KooWG2qAjJvJwv4K7hrHbNVJdDzQqqwPSEezM1R3csV22yK3")
@@ -52,7 +54,7 @@ func serv(ctx context.Context) peer.AddrInfo {
 	return h.Peerstore().PeerInfo(h.ID())
 }
 
-func client(ctx context.Context, serv peer.AddrInfo) {
+func client(ctx context.Context, serv peer.AddrInfo, clk clock.Clock) {
 	h, err := util.Libp2pHost(ctx, "9999")
 	if err != nil {
 		panic(err)

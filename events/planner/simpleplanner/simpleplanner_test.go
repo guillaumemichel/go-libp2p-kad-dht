@@ -7,6 +7,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/internal/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,8 +28,6 @@ func TestSimplePlanner(t *testing.T) {
 	require.Empty(t, p.PopOverdueActions(ctx))
 
 	clk.Add(time.Millisecond)
-	require.Empty(t, p.PopOverdueActions(ctx))
-	clk.Add(minTimeStep)
 	require.Equal(t, actions[:1], p.PopOverdueActions(ctx))
 	require.Empty(t, p.PopOverdueActions(ctx))
 
@@ -67,4 +66,45 @@ func TestSimplePlanner(t *testing.T) {
 
 	p.RemoveAction(ctx, actions[8])
 	require.Empty(t, p.PopOverdueActions(ctx))
+}
+
+func TestNextActionTime(t *testing.T) {
+	ctx := context.Background()
+	clk := clock.NewMock()
+	p := NewSimplePlanner(clk)
+
+	clk.Set(time.Unix(0, 0))
+
+	ti := p.NextActionTime(ctx)
+	require.Equal(t, util.MaxTime, ti)
+
+	t0 := clk.Now().Add(time.Second)
+	p.ScheduleAction(ctx, t0, 0)
+	ti = p.NextActionTime(ctx)
+	require.Equal(t, t0, ti)
+
+	t1 := clk.Now().Add(time.Hour)
+	p.ScheduleAction(ctx, t1, 1)
+	ti = p.NextActionTime(ctx)
+	require.Equal(t, t0, ti)
+
+	t2 := clk.Now().Add(time.Millisecond)
+	p.ScheduleAction(ctx, t2, 2)
+	ti = p.NextActionTime(ctx)
+	require.Equal(t, t2, ti)
+
+	require.Equal(t, 0, len(p.PopOverdueActions(ctx)))
+
+	clk.Add(time.Millisecond)
+	ti = p.NextActionTime(ctx)
+	require.Equal(t, t2, ti)
+
+	require.Equal(t, 1, len(p.PopOverdueActions(ctx)))
+	ti = p.NextActionTime(ctx)
+	require.Equal(t, t0, ti)
+
+	clk.Add(time.Hour)
+	require.Equal(t, 2, len(p.PopOverdueActions(ctx)))
+	ti = p.NextActionTime(ctx)
+	require.Equal(t, util.MaxTime, ti)
 }
