@@ -7,8 +7,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
-
-	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
 type SimpleRouting struct {
@@ -20,7 +18,6 @@ type SimpleRouting struct {
 	queryConcurrency      int
 	queryTimeout          time.Duration
 	maxConcurrentRequests int
-	protocolID            protocol.ID
 
 	//lock *sync.Mutex
 	// list of ongoing queries, useful if we want to limit the queries
@@ -45,6 +42,5 @@ func NewSimpleRouting(self key.KadKey, msgEndpoint endpoint.Endpoint,
 		queryConcurrency:      cfg.QueryConcurrency,
 		queryTimeout:          cfg.QueryTimeout,
 		maxConcurrentRequests: cfg.MaxConcurrentRequests,
-		protocolID:            cfg.ProtocolID,
 	}, nil
 }

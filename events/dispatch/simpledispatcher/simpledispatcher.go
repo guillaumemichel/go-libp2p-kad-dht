@@ -5,17 +5,23 @@ import (
 	"sort"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
+	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/util"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // SimpleDispatcher is a simple implementation of a LoopDispatcher.
 type SimpleDispatcher struct {
 	clk       *clock.Mock
 	peers     map[address.NodeID]scheduler.AwareScheduler
+	servers   map[address.NodeID]*simserver.SimServer
 	latencies map[address.NodeID]map[address.NodeID]time.Duration
 }
 
@@ -25,14 +31,19 @@ func NewSimpleDispatcher(clk *clock.Mock) *SimpleDispatcher {
 	return &SimpleDispatcher{
 		clk:       clk,
 		peers:     make(map[address.NodeID]scheduler.AwareScheduler),
+		servers:   make(map[address.NodeID]*simserver.SimServer),
 		latencies: make(map[address.NodeID]map[address.NodeID]time.Duration),
 	}
 }
 
 // AddPeer adds a peer to the dispatcher. The peer must have an associated
-// scheduler, using the same mock clock as the dispatcher.
-func (d *SimpleDispatcher) AddPeer(id address.NodeID, s scheduler.AwareScheduler) {
-	d.peers[id] = s
+// scheduler.AwareScheduler, using the same mock clock as the dispatcher.
+func (d *SimpleDispatcher) AddPeer(id address.NodeID, s scheduler.Scheduler, serv *simserver.SimServer) {
+	switch s := s.(type) {
+	case scheduler.AwareScheduler:
+		d.peers[id] = s
+	}
+	d.servers[id] = serv
 }
 
 // RemovePeer removes a peer from the dispatcher.
@@ -42,10 +53,16 @@ func (d *SimpleDispatcher) RemovePeer(id address.NodeID) {
 	for _, l := range d.latencies {
 		delete(l, id)
 	}
+	delete(d.servers, id)
 }
 
 // DispatchTo immediately dispatches an action to a peer.
 func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a events.Action) {
+	ctx, span := internal.StartSpan(ctx, "SimpleDispatcher.DispatchTo", trace.WithAttributes(
+		attribute.String("NodeID", to.String()),
+	))
+	defer span.End()
+
 	if s, ok := d.peers[to]; ok {
 		s.EnqueueAction(ctx, a)
 	}
@@ -131,29 +148,32 @@ const (
 // DispatchLoop runs the dispatch loop. It will run until all peers have no more
 // actions to run.
 func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
-	// once DispatchLoop is called, the peers, latencies and scheduled actions
-	// cannot be mondified anymore
+	ctx, span := internal.StartSpan(ctx, "SimpleDispatcher.DispatchLoop")
+	defer span.End()
+
 	actionID := 0
 
 	// get the next action time for each peer
 	nextActions := make(map[address.NodeID]time.Time)
 	for id, s := range d.peers {
-		t := s.NextActionTime(ctx)
-		if t == util.MaxTime {
-			delete(nextActions, id)
-		} else {
-			nextActions[id] = t
-		}
+		nextActions[id] = s.NextActionTime(ctx)
 	}
 	// TODO: optimize nextActions to be a linked list of actions sorted by time
 
 	for len(nextActions) > 0 {
+		span.AddEvent("DispatchLoop iteration")
+
 		// find the time of the next action to be run
 		minTime := util.MaxTime
 		for _, t := range nextActions {
 			if t.Before(minTime) {
 				minTime = t
 			}
+		}
+
+		if minTime == util.MaxTime {
+			// no more actions to run
+			break
 		}
 
 		ctx = context.WithValue(ctx, ctxTimeKey, minTime)
@@ -170,8 +190,12 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 			return upNext[i].String() < upNext[j].String()
 		})
 
+		span.AddEvent("DispatchLoop: sorted!")
+
 		// "wait" minTime for the next action
-		d.clk.Set(minTime)
+		d.clk.Set(minTime) // slow to execute (because of the mutex?)
+
+		span.AddEvent("DispatchLoop: new time set!")
 
 		for len(upNext) > 0 {
 			ongoing := make([]address.NodeID, len(upNext))
@@ -184,20 +208,23 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 				ctx = context.WithValue(ctx, ctxActionIdKey, actionID)
 				actionID++
 				d.peers[id].RunOne(ctx)
-				t := d.peers[id].NextActionTime(ctx)
-				if t == util.MaxTime {
-					// no more actions for this peer
-					delete(nextActions, id)
-				} else {
-					if t == minTime {
-						// multiple actions are scheduled at minTime for this peer
-						upNext = append(upNext, id)
-					} else {
-						// peer next action is scheduled at a later time
-						nextActions[id] = t
-					}
-				}
+			}
+		}
+
+		for id, s := range d.peers {
+			t := s.NextActionTime(ctx)
+			if t == minTime {
+				upNext = append(upNext, id)
+			} else {
+				nextActions[id] = t
 			}
 		}
 	}
+}
+
+func (d *SimpleDispatcher) Server(n address.NodeID) *simserver.SimServer {
+	if serv, ok := d.servers[n]; ok {
+		return serv
+	}
+	return nil
 }

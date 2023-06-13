@@ -16,7 +16,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 
 	"github.com/libp2p/go-libp2p/core/peerstore"
-	"github.com/libp2p/go-libp2p/core/protocol"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -40,11 +39,10 @@ type SimpleQuery struct {
 	ctx         context.Context
 	done        bool
 	kadid       key.KadKey
-	req         message.MinKadRequestMessage
+	req         message.MinKadMessage
 	resp        message.MinKadResponseMessage
 	concurrency int
 	timeout     time.Duration
-	proto       protocol.ID
 
 	msgEndpoint endpoint.Endpoint
 	rt          routingtable.RoutingTable
@@ -66,9 +64,9 @@ type SimpleQuery struct {
 // reader, and the parameters to these events are determined by the query's
 // parameters. The query keeps track of the closest known peers to the target
 // key, and the peers that have been queried so far.
-func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadRequestMessage,
+func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMessage,
 	resp message.MinKadResponseMessage, concurrency int, timeout time.Duration,
-	proto protocol.ID, msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
+	msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
 	sched scheduler.Scheduler, resultsChan chan interface{},
 	handleResultFn HandleResultFn) *SimpleQuery {
 
@@ -88,7 +86,6 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadReq
 		kadid:            kadid,
 		concurrency:      concurrency,
 		timeout:          timeout,
-		proto:            proto,
 		msgEndpoint:      msgEndpoint,
 		rt:               rt,
 		inflightRequests: 0,
@@ -151,7 +148,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	span.AddEvent("peer selected: " + id.String())
 
 	// start new go routine to send request to peer
-	go q.sendRequest(ctx, id)
+	q.sendRequest(ctx, id)
 
 	// add timeout to scheduler
 	scheduler.ScheduleActionIn(ctx, q.sched, q.timeout, func(ctx context.Context) {
@@ -176,20 +173,32 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, id address.NodeID) {
 		return
 	}
 
-	err := q.msgEndpoint.SendRequest(ctx, id, q.req, q.resp, q.proto)
-	if err != nil {
-		span.AddEvent("request failed")
+	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage) {
+		span.AddEvent("got a response")
 		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
-			q.requestError(ctx, id, err)
+			q.handleResponse(ctx, id, resp)
 		})
-		return
+		span.AddEvent("Enqueued SimpleQuery.handleResponse")
 	}
-	span.AddEvent("got a response")
 
-	q.sched.EnqueueAction(ctx, func(ctx context.Context) {
-		q.handleResponse(ctx, id, q.resp)
-	})
-	span.AddEvent("Enqueued SimpleQuery.handleResponse")
+	q.msgEndpoint.SendRequestHandleResponse(ctx, id, q.req, handleResp)
+
+	/*
+		err := q.msgEndpoint.SendRequest(ctx, id, q.req, q.resp)
+		if err != nil {
+			span.AddEvent("request failed")
+			q.sched.EnqueueAction(ctx, func(ctx context.Context) {
+				q.requestError(ctx, id, err)
+			})
+			return
+		}
+		span.AddEvent("got a response")
+
+		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
+			q.handleResponse(ctx, id, q.resp)
+		})
+		span.AddEvent("Enqueued SimpleQuery.handleResponse")
+	*/
 }
 
 func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, resp message.MinKadResponseMessage) {
@@ -215,7 +224,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 	newPeerIds := make([]address.NodeID, 0, len(closerPeers))
 
 	for _, na := range closerPeers {
-		id := na.NodeID()
+		id := address.ID(na)
 		if key.Compare(address.KadID(id), q.msgEndpoint.KadID()) == 0 {
 			// don't add self to queries or routing table
 			span.AddEvent("remote peer provided self as closer peer")

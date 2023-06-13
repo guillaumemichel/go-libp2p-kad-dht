@@ -1,7 +1,6 @@
 package simplequery
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
@@ -48,7 +47,6 @@ func addToPeerlist(pl *peerList, ids []address.NodeID) {
 	// linked list of new peers sorted by distance to target
 	newHead := sliceToPeerInfos(pl.target, ids)
 	if newHead == nil {
-		fmt.Println(ids)
 		return
 	}
 

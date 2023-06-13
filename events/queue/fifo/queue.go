@@ -30,11 +30,11 @@ func NewQueue(ctx context.Context) *Queue {
 	}
 }
 
-func (q *Queue) Enqueue(e events.Action) {
+func (q *Queue) Enqueue(ctx context.Context, e events.Action) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	_, span := internal.StartSpan(q.ctx, "FifoQueue.Enqueue")
+	_, span := internal.StartSpan(ctx, "FifoQueue.Enqueue")
 	defer span.End()
 
 	elem := &element{data: e}
@@ -53,11 +53,11 @@ func (q *Queue) Enqueue(e events.Action) {
 	}
 }
 
-func (q *Queue) Dequeue() events.Action {
+func (q *Queue) Dequeue(ctx context.Context) events.Action {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	_, span := internal.StartSpan(q.ctx, "FifoQueue.Dequeue")
+	_, span := internal.StartSpan(ctx, "FifoQueue.Dequeue")
 	defer span.End()
 
 	if q.size == 0 {

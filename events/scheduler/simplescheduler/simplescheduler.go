@@ -38,7 +38,7 @@ func (s *SimpleScheduler) Now() time.Time {
 
 // EnqueueAction enqueues an action to be run as soon as possible.
 func (s *SimpleScheduler) EnqueueAction(ctx context.Context, a events.Action) {
-	s.queue.Enqueue(a)
+	s.queue.Enqueue(ctx, a)
 }
 
 // ScheduleAction schedules an action to run at a specific time.
@@ -54,7 +54,7 @@ func (s *SimpleScheduler) ScheduleAction(ctx context.Context, t time.Time, a eve
 func (s *SimpleScheduler) moveOverdueActions(ctx context.Context) {
 	overdue := s.planner.PopOverdueActions(ctx)
 
-	queue.EnqueueMany(s.queue, overdue)
+	queue.EnqueueMany(ctx, s.queue, overdue)
 }
 
 // RunOne runs one action from the scheduler's queue, returning true if an
@@ -66,7 +66,7 @@ func (s *SimpleScheduler) RunOne(ctx context.Context) bool {
 		return false
 	}
 
-	if a := s.queue.Dequeue(); a != nil {
+	if a := s.queue.Dequeue(ctx); a != nil {
 		events.Run(ctx, a)
 		return true
 	}

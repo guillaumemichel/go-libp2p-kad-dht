@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
-	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 )
 
 // Config is a structure containing all the options that can be used when
@@ -14,7 +13,7 @@ type Config struct {
 	QueryConcurrency      int
 	QueryTimeout          time.Duration
 	MaxConcurrentRequests int
-	ProtocolID            protocol.ID
+	ProtocolID            address.ProtocolID
 }
 
 // Apply applies the given options to this Option
@@ -41,7 +40,6 @@ var DefaultConfig = func(cfg *Config) error {
 	cfg.QueryConcurrency = 3
 	cfg.QueryTimeout = 10 * time.Second
 	cfg.MaxConcurrentRequests = 5
-	cfg.ProtocolID = consts.ProtocolDHT
 
 	return nil
 }
@@ -68,14 +66,6 @@ func QueryTimeout(t time.Duration) Option {
 func MaxConcurrentRequests(n int) Option {
 	return func(cfg *Config) error {
 		cfg.MaxConcurrentRequests = n
-		return nil
-	}
-}
-
-// ProtocolID sets the protocol ID to use for the network.
-func ProtocolID(p protocol.ID) Option {
-	return func(cfg *Config) error {
-		cfg.ProtocolID = p
 		return nil
 	}
 }

@@ -1,6 +1,10 @@
 package consts
 
-import "github.com/libp2p/go-libp2p/core/protocol"
+import (
+	"time"
+
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+)
 
 const (
 	// BucketSize is the default bucket size for the DHT.
@@ -9,11 +13,14 @@ const (
 	NClosestPeers = 20
 	// ReplicationFactor is the default replication factor for the DHT.
 	ReplicationFactor = 20
+
+	// PeerstoreTTL is the default TTL for an entry in the peerstore.
+	PeerstoreTTL = 10 * time.Minute
 )
 
 var (
 	// ProtocolDHT is the default DHT protocol.
-	ProtocolDHT protocol.ID = "/ipfs/kad/1.1.0"
+	ProtocolDHT address.ProtocolID = "/ipfs/kad/1.1.0"
 	// DefaultProtocols spoken by the DHT.
-	DefaultProtocols = []protocol.ID{ProtocolDHT}
+	DefaultProtocols = []address.ProtocolID{ProtocolDHT}
 )

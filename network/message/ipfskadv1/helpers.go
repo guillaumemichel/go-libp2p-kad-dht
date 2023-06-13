@@ -6,6 +6,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	laddr "github.com/libp2p/go-libp2p-kad-dht/network/address/libp2p"
+	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -67,6 +68,37 @@ func FindPeerRequest(p peer.ID) *Message {
 		Type: Message_FIND_NODE,
 		Key:  marshalledPeerid,
 	}
+}
+
+func FindPeerResponse(p peer.ID, peers []address.NodeID, e endpoint.Endpoint) *Message {
+	marshalledPeerid, _ := p.MarshalBinary()
+	return &Message{
+		Type:        Message_FIND_NODE,
+		Key:         marshalledPeerid,
+		CloserPeers: NodeIDsToPbPeers(peers, e),
+	}
+}
+
+func NodeIDsToPbPeers(peers []address.NodeID, e endpoint.Endpoint) []*Message_Peer {
+	pbPeers := make([]*Message_Peer, 0, len(peers))
+	for _, n := range peers {
+		p := n.(peer.ID)
+
+		// convert NetworkAddress to []multiaddr.Multiaddr
+		addrs := e.NetworkAddress(n).(peer.AddrInfo).Addrs
+		pbAddrs := make([][]byte, len(addrs))
+		// convert multiaddresses to bytes
+		for i, a := range addrs {
+			pbAddrs[i] = a.Bytes()
+		}
+
+		pbPeers = append(pbPeers, &Message_Peer{
+			Id:         []byte(p),
+			Addrs:      pbAddrs,
+			Connection: Message_ConnectionType(e.Connectedness(n)),
+		})
+	}
+	return pbPeers
 }
 
 func PeeridsToPbPeers(peers []peer.ID, h host.Host) []*Message_Peer {

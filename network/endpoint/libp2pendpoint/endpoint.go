@@ -22,7 +22,8 @@ import (
 // TODO: Use sync.Pool to reuse buffers https://pkg.go.dev/sync#Pool
 
 type Libp2pEndpoint struct {
-	host host.Host
+	host    host.Host
+	protoID protocol.ID
 
 	// peer filters to be applied before adding peer to peerstore
 
@@ -30,9 +31,10 @@ type Libp2pEndpoint struct {
 	readers sync.Pool
 }
 
-func NewMessageEndpoint(host host.Host) *Libp2pEndpoint {
+func NewMessageEndpoint(host host.Host, proto protocol.ID) *Libp2pEndpoint {
 	return &Libp2pEndpoint{
 		host:    host,
+		protoID: proto,
 		writers: sync.Pool{},
 		readers: sync.Pool{},
 	}
@@ -107,7 +109,7 @@ func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(na address.NetworkAddress
 }
 
 func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.NodeID, req message.MinKadRequestMessage,
-	resp message.MinKadResponseMessage, proto protocol.ID) error {
+	resp message.MinKadResponseMessage) error {
 
 	protoReq, ok := req.(message.ProtoKadRequestMessage)
 	if !ok {
@@ -125,7 +127,7 @@ func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.N
 	))
 	defer span.End()
 
-	s, err := msgEndpoint.host.NewStream(ctx, p, proto)
+	s, err := msgEndpoint.host.NewStream(ctx, p, msgEndpoint.protoID)
 	if err != nil {
 		span.RecordError(err)
 		return err

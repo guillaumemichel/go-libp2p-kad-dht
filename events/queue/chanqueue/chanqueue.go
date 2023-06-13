@@ -28,8 +28,8 @@ func NewChanQueue(ctx context.Context, capacity int) *ChanQueue {
 }
 
 // Enqueue adds an element to the queue
-func (q *ChanQueue) Enqueue(e events.Action) {
-	_, span := internal.StartSpan(q.ctx, "ChanQueue.Enqueue")
+func (q *ChanQueue) Enqueue(ctx context.Context, e events.Action) {
+	_, span := internal.StartSpan(ctx, "ChanQueue.Enqueue")
 	defer span.End()
 
 	select {
@@ -47,8 +47,8 @@ func (q *ChanQueue) Enqueue(e events.Action) {
 }
 
 // Dequeue reads the next element from the queue, note that this operation is blocking
-func (q *ChanQueue) Dequeue() events.Action {
-	_, span := internal.StartSpan(q.ctx, "ChanQueue.Dequeue")
+func (q *ChanQueue) Dequeue(ctx context.Context) events.Action {
+	_, span := internal.StartSpan(ctx, "ChanQueue.Dequeue")
 	defer span.End()
 
 	if q.Empty() {

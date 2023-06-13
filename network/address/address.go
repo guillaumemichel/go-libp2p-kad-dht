@@ -6,7 +6,16 @@ import (
 )
 
 type NetworkAddress interface {
-	NodeID() NodeID
+}
+
+func ID(na NetworkAddress) NodeID {
+	switch na := na.(type) {
+	case peer.AddrInfo:
+		return na.ID
+	case peer.ID:
+		return na
+	}
+	return StringID{}
 }
 
 type NodeID interface {
@@ -23,3 +32,5 @@ func KadID(id NodeID) key.KadKey {
 
 	return key.StringKadID(id.String())
 }
+
+type ProtocolID string

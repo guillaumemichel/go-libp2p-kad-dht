@@ -7,12 +7,15 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
 )
+
+type StreamID uint64
 
 // Dispatcher is an interface for dispatching actions to peers' schedulers.
 type Dispatcher interface {
 	// AddPeer adds a peer to the dispatcher.
-	AddPeer(address.NodeID, scheduler.Scheduler)
+	AddPeer(address.NodeID, scheduler.Scheduler, *simserver.SimServer)
 	// RemovePeer removes a peer from the dispatcher.
 	RemovePeer(id address.NodeID)
 

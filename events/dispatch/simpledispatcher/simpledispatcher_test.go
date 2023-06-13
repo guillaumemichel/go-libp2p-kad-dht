@@ -32,7 +32,7 @@ func TestSimpleDispatcher(t *testing.T) {
 	// creating dispatcher and adding peers
 	d := NewSimpleDispatcher(clk)
 	for _, id := range ids {
-		d.AddPeer(id, scheds[id])
+		d.AddPeer(id, scheds[id], nil)
 	}
 
 	// latencies between nodes
@@ -71,7 +71,7 @@ func TestSimpleDispatcher(t *testing.T) {
 	d.RemovePeer(ids[1])
 
 	// add peer again
-	d.AddPeer(ids[1], scheds[ids[1]])
+	d.AddPeer(ids[1], scheds[ids[1]], nil)
 	// latency should be reset to 0
 	require.Equal(t, time.Duration(0), d.GetLatency(ids[0], ids[1]))
 
@@ -144,7 +144,7 @@ func TestDispatchLoop(t *testing.T) {
 	// creating dispatcher and adding peers
 	d := NewSimpleDispatcher(clk)
 	for _, id := range ids {
-		d.AddPeer(id, scheds[id])
+		d.AddPeer(id, scheds[id], nil)
 	}
 
 	// create actions to be dispatched

@@ -5,7 +5,10 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	lendpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
+
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	libp2pnet "github.com/libp2p/go-libp2p/core/network"
@@ -33,7 +36,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	targetConnectedness := r.msgEndpoint.Connectedness(p)
 	if targetConnectedness == libp2pnet.Connected {
 		span.AddEvent("Already connected")
-		return r.msgEndpoint.PeerInfo(p), nil
+		return lendpoint.PeerInfo(r.msgEndpoint, p)
 	}
 
 	kadid := key.PeerKadID(p)
@@ -49,13 +52,17 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 
 	// create the query and add appropriate events to the event queue
 	sq.NewSimpleQuery(ctx, kadid, req, resp, r.queryConcurrency, r.queryTimeout,
-		r.protocolID, r.msgEndpoint, r.rt, r.sched, resultsChan, handleResultsFn)
+		r.msgEndpoint, r.rt, r.sched, resultsChan, handleResultsFn)
 
 	// only one dial runs at a time to ensure sequentiality
 	dialRunning := false
 	newDialRequired := false
 	dialChan := make(chan bool)
-	currAddresses := r.msgEndpoint.PeerInfo(p).Addrs
+	ai, err := lendpoint.PeerInfo(r.msgEndpoint, p)
+	if err != nil {
+		return peer.AddrInfo{}, err
+	}
+	currAddresses := ai.Addrs
 
 	// this function is called once the async dial finishes, reporting its result
 	dialReportFn := func(ctx context.Context, success bool) {
@@ -102,7 +109,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	case success := <-dialChan:
 		if success {
 			// if we could dial the peer, return its address info
-			return r.msgEndpoint.PeerInfo(p), nil
+			return lendpoint.PeerInfo(r.msgEndpoint, p)
 		}
 		if newDialRequired {
 			newDialRequired = false
@@ -112,7 +119,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 			dialRunning = false
 		}
 	}
-	return r.msgEndpoint.PeerInfo(p), nil
+	return lendpoint.PeerInfo(r.msgEndpoint, p)
 }
 
 // containsNewAddresses returns true if newAddrs contains addresses that are not
@@ -146,11 +153,11 @@ func getFindPeerHandleResultsFn(p peer.ID) sq.HandleResultFn {
 		defer span.End()
 
 		for _, na := range m.CloserNodes() {
-			if na.NodeID().String() == p.String() {
+			if address.ID(na).String() == p.String() {
 				// we found the peer we were looking for
 
 				// convert NodeID to PeerID as we need to return a PeerID to the caller
-				peerid := na.NodeID().(peer.ID)
+				peerid := address.ID(na).(peer.ID)
 				span.AddEvent("Found peer", trace.WithAttributes(attribute.String("PeerID", peerid.String())))
 
 				select {

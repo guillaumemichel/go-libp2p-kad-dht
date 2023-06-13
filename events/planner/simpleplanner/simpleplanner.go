@@ -6,7 +6,6 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/util"
 )
 
@@ -65,9 +64,6 @@ func (p *SimplePlanner) RemoveAction(ctx context.Context, a events.Action) {
 }
 
 func (p *SimplePlanner) PopOverdueActions(ctx context.Context) []events.Action {
-	_, span := internal.StartSpan(ctx, "events.OverdueActions")
-	defer span.End()
-
 	var overdue []events.Action
 	now := p.Clock.Now()
 	curr := p.NextAction

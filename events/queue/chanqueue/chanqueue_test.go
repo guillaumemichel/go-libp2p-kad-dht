@@ -21,13 +21,13 @@ func TestChanQueue(t *testing.T) {
 	}
 	require.True(t, q.Empty())
 
-	q.Enqueue(events[0])
+	q.Enqueue(ctx, events[0])
 	if q.Size() != 1 {
 		t.Errorf("Expected size 1, got %d", q.Size())
 	}
 	require.False(t, q.Empty())
 
-	q.Enqueue(events[1])
+	q.Enqueue(ctx, events[1])
 	if q.Size() != 2 {
 		t.Errorf("Expected size 2, got %d", q.Size())
 	}
@@ -38,7 +38,7 @@ func TestChanQueue(t *testing.T) {
 	<-newsChan
 
 	if !q.Empty() {
-		e := q.Dequeue()
+		e := q.Dequeue(ctx)
 		require.Equal(t, e, events[0])
 		if q.Size() != 1 {
 			t.Errorf("Expected size 1, got %d", q.Size())
@@ -47,7 +47,7 @@ func TestChanQueue(t *testing.T) {
 	}
 
 	if !q.Empty() {
-		e := q.Dequeue()
+		e := q.Dequeue(ctx)
 		require.Equal(t, e, events[1])
 		if q.Size() != 0 {
 			t.Errorf("Expected size 0, got %d", q.Size())
