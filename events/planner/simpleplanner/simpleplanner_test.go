@@ -24,7 +24,7 @@ func TestSimplePlanner(t *testing.T) {
 		actions[i] = i
 	}
 
-	p.ScheduleAction(ctx, clk.Now().Add(time.Millisecond), actions[0])
+	a0 := p.ScheduleAction(ctx, clk.Now().Add(time.Millisecond), actions[0])
 	require.Empty(t, p.PopOverdueActions(ctx))
 
 	clk.Add(time.Millisecond)
@@ -50,21 +50,21 @@ func TestSimplePlanner(t *testing.T) {
 	clk.Add(time.Hour)
 	require.Equal(t, actions[4:5], p.PopOverdueActions(ctx))
 
-	p.RemoveAction(ctx, actions[0])
+	p.RemoveAction(ctx, a0)
 
-	p.ScheduleAction(ctx, clk.Now().Add(time.Second), actions[6])      // 3
-	p.ScheduleAction(ctx, clk.Now().Add(time.Microsecond), actions[7]) // 1
-	p.ScheduleAction(ctx, clk.Now().Add(time.Hour), actions[8])        // 4
-	p.ScheduleAction(ctx, clk.Now().Add(time.Millisecond), actions[9]) // 2
+	a6 := p.ScheduleAction(ctx, clk.Now().Add(time.Second), actions[6])      // 3
+	p.ScheduleAction(ctx, clk.Now().Add(time.Microsecond), actions[7])       // 1
+	a8 := p.ScheduleAction(ctx, clk.Now().Add(time.Hour), actions[8])        // 4
+	a9 := p.ScheduleAction(ctx, clk.Now().Add(time.Millisecond), actions[9]) // 2
 
-	p.RemoveAction(ctx, actions[9])
-	p.RemoveAction(ctx, actions[0])
+	p.RemoveAction(ctx, a9)
+	p.RemoveAction(ctx, a0)
 	clk.Add(time.Second + minTimeStep)
 
-	p.RemoveAction(ctx, actions[6])
+	p.RemoveAction(ctx, a6)
 	require.Equal(t, actions[7:8], p.PopOverdueActions(ctx))
 
-	p.RemoveAction(ctx, actions[8])
+	p.RemoveAction(ctx, a8)
 	require.Empty(t, p.PopOverdueActions(ctx))
 }
 

@@ -33,10 +33,6 @@ func TestChanQueue(t *testing.T) {
 	}
 	require.False(t, q.Empty())
 
-	newsChan := q.NewsChan()
-	require.NotNil(t, newsChan)
-	<-newsChan
-
 	if !q.Empty() {
 		e := q.Dequeue(ctx)
 		require.Equal(t, e, events[0])
@@ -55,5 +51,18 @@ func TestChanQueue(t *testing.T) {
 		require.True(t, q.Empty())
 	}
 
+	require.Nil(t, q.Dequeue(ctx))
+
 	q.Close()
+}
+
+func TestChanQueueMaxCapacity(t *testing.T) {
+	ctx := context.Background()
+
+	q := NewChanQueue(context.Background(), 1)
+
+	q.Enqueue(ctx, 1)
+	require.Equal(t, uint(1), q.Size())
+	q.Enqueue(ctx, 2)
+	require.Equal(t, uint(1), q.Size())
 }

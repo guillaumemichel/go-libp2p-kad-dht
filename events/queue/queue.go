@@ -9,7 +9,6 @@ import (
 type EventQueue interface {
 	Enqueue(context.Context, events.Action)
 	Dequeue(context.Context) events.Action
-	NewsChan() <-chan struct{}
 
 	Size() uint
 	Close()

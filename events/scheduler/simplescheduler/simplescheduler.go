@@ -42,12 +42,18 @@ func (s *SimpleScheduler) EnqueueAction(ctx context.Context, a events.Action) {
 }
 
 // ScheduleAction schedules an action to run at a specific time.
-func (s *SimpleScheduler) ScheduleAction(ctx context.Context, t time.Time, a events.Action) {
+func (s *SimpleScheduler) ScheduleAction(ctx context.Context, t time.Time, a events.Action) planner.TimedAction {
 	if s.clk.Now().After(t) {
 		s.EnqueueAction(ctx, a)
-		return
+		return nil
 	}
-	s.planner.ScheduleAction(ctx, t, a)
+	return s.planner.ScheduleAction(ctx, t, a)
+}
+
+// RemovePlannedAction removes an action from the scheduler planned actions
+// (not from the queue), does nothing if the action is not in the planner
+func (s *SimpleScheduler) RemovePlannedAction(ctx context.Context, a events.Action) {
+	s.planner.RemoveAction(ctx, a)
 }
 
 // moveOverdueActions moves all overdue actions from the planner to the queue.
@@ -61,10 +67,6 @@ func (s *SimpleScheduler) moveOverdueActions(ctx context.Context) {
 // action was run, false if the queue was empty.
 func (s *SimpleScheduler) RunOne(ctx context.Context) bool {
 	s.moveOverdueActions(ctx)
-
-	if queue.Empty(s.queue) {
-		return false
-	}
 
 	if a := s.queue.Dequeue(ctx); a != nil {
 		events.Run(ctx, a)

@@ -161,8 +161,6 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 	// TODO: optimize nextActions to be a linked list of actions sorted by time
 
 	for len(nextActions) > 0 {
-		span.AddEvent("DispatchLoop iteration")
-
 		// find the time of the next action to be run
 		minTime := util.MaxTime
 		for _, t := range nextActions {
@@ -190,12 +188,8 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 			return upNext[i].String() < upNext[j].String()
 		})
 
-		span.AddEvent("DispatchLoop: sorted!")
-
 		// "wait" minTime for the next action
 		d.clk.Set(minTime) // slow to execute (because of the mutex?)
-
-		span.AddEvent("DispatchLoop: new time set!")
 
 		for len(upNext) > 0 {
 			ongoing := make([]address.NodeID, len(upNext))
@@ -209,14 +203,13 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 				actionID++
 				d.peers[id].RunOne(ctx)
 			}
-		}
-
-		for id, s := range d.peers {
-			t := s.NextActionTime(ctx)
-			if t == minTime {
-				upNext = append(upNext, id)
-			} else {
-				nextActions[id] = t
+			for id, s := range d.peers {
+				t := s.NextActionTime(ctx)
+				if t == minTime {
+					upNext = append(upNext, id)
+				} else {
+					nextActions[id] = t
+				}
 			}
 		}
 	}

@@ -6,19 +6,20 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 	"github.com/libp2p/go-libp2p-kad-dht/internal/util"
 )
 
 type SimplePlanner struct {
 	Clock clock.Clock
 
-	NextAction *timedAction
+	NextAction *SimpleTimedAction
 }
 
-type timedAction struct {
+type SimpleTimedAction struct {
 	action events.Action
 	time   time.Time
-	next   *timedAction
+	next   *SimpleTimedAction
 }
 
 func NewSimplePlanner(clk clock.Clock) *SimplePlanner {
@@ -27,35 +28,38 @@ func NewSimplePlanner(clk clock.Clock) *SimplePlanner {
 	}
 }
 
-func (p *SimplePlanner) ScheduleAction(ctx context.Context, t time.Time, a events.Action) {
+func (p *SimplePlanner) ScheduleAction(ctx context.Context, t time.Time, a events.Action) planner.TimedAction {
 	if p.NextAction == nil {
-		p.NextAction = &timedAction{action: a, time: t}
-		return
+		p.NextAction = &SimpleTimedAction{action: a, time: t}
+		return p.NextAction
 	}
 
 	curr := p.NextAction
 	if t.Before(curr.time) {
-		p.NextAction = &timedAction{action: a, time: t, next: curr}
-		return
+		p.NextAction = &SimpleTimedAction{action: a, time: t, next: curr}
+		return p.NextAction
 	}
 	for curr.next != nil && t.After(curr.next.time) {
 		curr = curr.next
 	}
-	curr.next = &timedAction{action: a, time: t, next: curr.next}
+	curr.next = &SimpleTimedAction{action: a, time: t, next: curr.next}
+	return curr.next
 }
 
-func (p *SimplePlanner) RemoveAction(ctx context.Context, a events.Action) {
-	if p.NextAction == nil {
+func (p *SimplePlanner) RemoveAction(ctx context.Context, ta planner.TimedAction) {
+	a, ok := ta.(*SimpleTimedAction)
+
+	if !ok || p.NextAction == nil {
 		return
 	}
 
 	curr := p.NextAction
-	if curr.action == a {
+	if curr == a {
 		p.NextAction = curr.next
 		return
 	}
 	for curr.next != nil {
-		if curr.next.action == a {
+		if curr.next == a {
 			curr.next = curr.next.next
 			return
 		}

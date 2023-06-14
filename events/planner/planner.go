@@ -7,12 +7,14 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 )
 
+type TimedAction interface{}
+
 // ActionPlanner is an interface for scheduling actions at a specific time.
 type ActionPlanner interface {
 	// ScheduleAction schedules an action to run at a specific time
-	ScheduleAction(context.Context, time.Time, events.Action)
+	ScheduleAction(context.Context, time.Time, events.Action) TimedAction
 	// RemoveAction removes an action from the planner
-	RemoveAction(context.Context, events.Action)
+	RemoveAction(context.Context, TimedAction)
 
 	// PopOverdueActions returns all actions that are overdue and removes them
 	// from the planner

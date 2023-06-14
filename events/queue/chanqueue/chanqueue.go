@@ -10,20 +10,16 @@ import (
 
 // ChanQueue is a trivial queue implementation using a channel
 type ChanQueue struct {
-	ctx      context.Context
-	queue    chan events.Action
-	newsChan chan struct{}
+	queue chan events.Action
 }
 
 // NewChanQueue creates a new queue
 func NewChanQueue(ctx context.Context, capacity int) *ChanQueue {
-	ctx, span := internal.StartSpan(ctx, "NewChanQueue")
+	_, span := internal.StartSpan(ctx, "NewChanQueue")
 	defer span.End()
 
 	return &ChanQueue{
-		ctx:      ctx,
-		queue:    make(chan events.Action, capacity),
-		newsChan: make(chan struct{}, 1),
+		queue: make(chan events.Action, capacity),
 	}
 }
 
@@ -33,16 +29,9 @@ func (q *ChanQueue) Enqueue(ctx context.Context, e events.Action) {
 	defer span.End()
 
 	select {
-	case <-q.ctx.Done():
-		return
 	case q.queue <- e:
 	default:
 		span.RecordError(errors.New("cannot write to queue"))
-	}
-
-	select {
-	case q.newsChan <- struct{}{}:
-	default:
 	}
 }
 
@@ -56,13 +45,7 @@ func (q *ChanQueue) Dequeue(ctx context.Context) events.Action {
 		return nil
 	}
 
-	select {
-	case <-q.ctx.Done():
-		span.RecordError(q.ctx.Err())
-		return nil
-	case e := <-q.queue:
-		return e
-	}
+	return <-q.queue
 }
 
 // Empty returns true if the queue is empty
@@ -74,11 +57,6 @@ func (q *ChanQueue) Size() uint {
 	return uint(len(q.queue))
 }
 
-func (q *ChanQueue) NewsChan() <-chan struct{} {
-	return q.newsChan
-}
-
 func (q *ChanQueue) Close() {
 	close(q.queue)
-	close(q.newsChan)
 }

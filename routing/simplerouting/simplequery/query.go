@@ -129,6 +129,9 @@ func (q *SimpleQuery) checkIfDone() error {
 }
 
 func (q *SimpleQuery) newRequest(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, q.timeout)
+	defer cancel()
+
 	ctx, span := internal.StartSpan(ctx, "SimpleQuery.newRequest")
 	defer span.End()
 
@@ -147,24 +150,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	}
 	span.AddEvent("peer selected: " + id.String())
 
-	// start new go routine to send request to peer
-	q.sendRequest(ctx, id)
-
-	// add timeout to scheduler
-	scheduler.ScheduleActionIn(ctx, q.sched, q.timeout, func(ctx context.Context) {
-		q.requestError(ctx, id, errors.New("request timeout ("+q.timeout.String()+")"))
-	})
-}
-
-// sendRequest
-// note that this function is called in a separate go routine
-func (q *SimpleQuery) sendRequest(ctx context.Context, id address.NodeID) {
-	ctx, cancel := context.WithTimeout(ctx, q.timeout)
-	defer cancel()
-
-	ctx, span := internal.StartSpan(ctx, "SimpleQuery.sendRequest")
-	defer span.End()
-
+	// dial peer
 	if err := q.msgEndpoint.DialPeer(ctx, id); err != nil {
 		span.AddEvent("peer dial failed")
 		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
@@ -173,32 +159,23 @@ func (q *SimpleQuery) sendRequest(ctx context.Context, id address.NodeID) {
 		return
 	}
 
+	// add timeout to scheduler
+	timeoutAction := scheduler.ScheduleActionIn(ctx, q.sched, q.timeout, func(ctx context.Context) {
+		q.requestError(ctx, id, errors.New("request timeout ("+q.timeout.String()+")"))
+	})
+
+	// function to be executed when a response is received
 	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage) {
 		span.AddEvent("got a response")
+		q.sched.RemovePlannedAction(ctx, timeoutAction)
 		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
 			q.handleResponse(ctx, id, resp)
 		})
 		span.AddEvent("Enqueued SimpleQuery.handleResponse")
 	}
 
+	// send request
 	q.msgEndpoint.SendRequestHandleResponse(ctx, id, q.req, handleResp)
-
-	/*
-		err := q.msgEndpoint.SendRequest(ctx, id, q.req, q.resp)
-		if err != nil {
-			span.AddEvent("request failed")
-			q.sched.EnqueueAction(ctx, func(ctx context.Context) {
-				q.requestError(ctx, id, err)
-			})
-			return
-		}
-		span.AddEvent("got a response")
-
-		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
-			q.handleResponse(ctx, id, q.resp)
-		})
-		span.AddEvent("Enqueued SimpleQuery.handleResponse")
-	*/
 }
 
 func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, resp message.MinKadResponseMessage) {

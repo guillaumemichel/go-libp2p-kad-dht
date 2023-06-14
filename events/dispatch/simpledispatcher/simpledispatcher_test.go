@@ -9,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,15 +26,19 @@ func TestSimpleDispatcher(t *testing.T) {
 	// creating 5 nodes, with their schedulers
 	ids := []address.NodeID{id("a"), id("b"), id("c"), id("d"), id("e")}
 	scheds := make(map[address.NodeID]*ss.SimpleScheduler)
+	servers := make(map[address.NodeID]*simserver.SimServer)
 	for _, id := range ids {
 		scheds[id] = ss.NewSimpleScheduler(ctx, clk)
+		servers[id] = &simserver.SimServer{}
 	}
 
 	// creating dispatcher and adding peers
 	d := NewSimpleDispatcher(clk)
 	for _, id := range ids {
-		d.AddPeer(id, scheds[id], nil)
+		d.AddPeer(id, scheds[id], servers[id])
 	}
+
+	require.Equal(t, servers[ids[0]], d.Server(ids[0]))
 
 	// latencies between nodes
 	latencies := [][]int{
@@ -69,6 +74,7 @@ func TestSimpleDispatcher(t *testing.T) {
 
 	// remove peer
 	d.RemovePeer(ids[1])
+	require.Nil(t, d.Server(ids[1]))
 
 	// add peer again
 	d.AddPeer(ids[1], scheds[ids[1]], nil)
