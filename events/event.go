@@ -40,7 +40,7 @@ func NewEvent(ctx context.Context, em *EventsManager, e interface{}) {
 	if em.active {
 		em.lock.Unlock()
 
-		_, span := internal.StartSpan(ctx, "events.NewEvent queued")
+		_, span := util.StartSpan(ctx, "events.NewEvent queued")
 		defer span.End()
 
 		// if a thread is already handling events, enqueue the new event
@@ -71,7 +71,7 @@ func NewEvent(ctx context.Context, em *EventsManager, e interface{}) {
 
 // StopEventManager stops the event manager from handling events
 func StopEventManager(ctx context.Context, em *EventsManager) {
-	_, span := internal.StartSpan(ctx, "events.StopEventManager")
+	_, span := util.StartSpan(ctx, "events.StopEventManager")
 	defer span.End()
 
 	em.lock.Lock()

@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 )
 
 type element struct {
@@ -34,7 +34,7 @@ func (q *Queue) Enqueue(ctx context.Context, e events.Action) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	_, span := internal.StartSpan(ctx, "FifoQueue.Enqueue")
+	_, span := util.StartSpan(ctx, "FifoQueue.Enqueue")
 	defer span.End()
 
 	elem := &element{data: e}
@@ -57,7 +57,7 @@ func (q *Queue) Dequeue(ctx context.Context) events.Action {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
-	_, span := internal.StartSpan(ctx, "FifoQueue.Dequeue")
+	_, span := util.StartSpan(ctx, "FifoQueue.Dequeue")
 	defer span.End()
 
 	if q.size == 0 {

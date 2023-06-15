@@ -3,11 +3,11 @@ package simplerouting
 import (
 	"context"
 
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	lendpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
@@ -24,7 +24,7 @@ type HandleResultsFn func(context.Context, sq.SimpleQuery)
 
 // FindPeer searches for a peer with given ID. This is a blocking call.
 func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
-	ctx, span := internal.StartSpan(ctx, "SimpleRouting.FindPeer",
+	ctx, span := util.StartSpan(ctx, "SimpleRouting.FindPeer",
 		trace.WithAttributes(attribute.String("PeerID", p.String())))
 	defer span.End()
 
@@ -149,7 +149,7 @@ func getFindPeerHandleResultsFn(p peer.ID) sq.HandleResultFn {
 	return func(ctx context.Context, i sq.QueryState, m message.MinKadResponseMessage,
 		resultsChan chan interface{}) sq.QueryState {
 
-		ctx, span := internal.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")
+		ctx, span := util.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")
 		defer span.End()
 
 		for _, na := range m.CloserNodes() {

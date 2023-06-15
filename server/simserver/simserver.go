@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -40,7 +40,7 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 		return
 	}
 
-	_, span := internal.StartSpan(ctx, "SimServer.HandleFindNodeRequest", trace.WithAttributes(
+	_, span := util.StartSpan(ctx, "SimServer.HandleFindNodeRequest", trace.WithAttributes(
 		attribute.Stringer("Requester", address.ID(rpeer)),
 		attribute.Stringer("Target", p)))
 	defer span.End()

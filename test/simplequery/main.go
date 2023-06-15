@@ -9,10 +9,9 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
-	"github.com/libp2p/go-libp2p-kad-dht/events/eventqueue/chanqueue"
 	sp "github.com/libp2p/go-libp2p-kad-dht/events/planner/simpleplanner"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/events/queue/chanqueue"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
@@ -20,7 +19,8 @@ import (
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
-	"github.com/libp2p/go-libp2p-kad-dht/test/util"
+	tutil "github.com/libp2p/go-libp2p-kad-dht/test/util"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -45,10 +45,10 @@ func lookupTest(ctx context.Context) {
 }
 
 func client1(ctx context.Context, ai peer.AddrInfo, clk clock.Clock) {
-	ctx, span := internal.StartSpan(ctx, "simplequerytest.client1")
+	ctx, span := util.StartSpan(ctx, "simplequerytest.client1")
 	defer span.End()
 
-	h, err := util.Libp2pHost(ctx, "9999")
+	h, err := tutil.Libp2pHost(ctx, "9999")
 	if err != nil {
 		panic(err)
 	}
@@ -82,10 +82,10 @@ func client1(ctx context.Context, ai peer.AddrInfo, clk clock.Clock) {
 }
 
 func client0(ctx context.Context, ai peer.AddrInfo) {
-	ctx, span := internal.StartSpan(ctx, "simplequerytest.client0")
+	ctx, span := util.StartSpan(ctx, "simplequerytest.client0")
 	defer span.End()
 
-	h, err := util.Libp2pHost(ctx, "9999")
+	h, err := tutil.Libp2pHost(ctx, "9999")
 	if err != nil {
 		panic(err)
 	}
@@ -131,10 +131,10 @@ func client0(ctx context.Context, ai peer.AddrInfo) {
 }
 
 func serv(ctx context.Context) peer.AddrInfo {
-	ctx, span := internal.StartSpan(ctx, "simplequerytest.serv")
+	ctx, span := util.StartSpan(ctx, "simplequerytest.serv")
 	defer span.End()
 
-	h, err := util.Libp2pHost(ctx, "8888")
+	h, err := tutil.Libp2pHost(ctx, "8888")
 	if err != nil {
 		panic(err)
 	}

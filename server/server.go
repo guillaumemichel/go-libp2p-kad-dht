@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	rt "github.com/libp2p/go-libp2p-kad-dht/routingtable"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -34,7 +34,7 @@ func NewServer(ctx context.Context, h host.Host, rt rt.RoutingTable,
 }
 
 func HandleRequest(ctx context.Context, s *Server, req *message.Message, stream network.Stream) {
-	ctx, span := internal.StartSpan(ctx, "HandleRequest")
+	ctx, span := util.StartSpan(ctx, "HandleRequest")
 	defer span.End()
 
 	switch req.GetType() {

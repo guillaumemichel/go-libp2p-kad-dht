@@ -7,19 +7,19 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	endpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	message "github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
-	"github.com/libp2p/go-libp2p-kad-dht/test/util"
+	tutil "github.com/libp2p/go-libp2p-kad-dht/test/util"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multibase"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
-	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 )
 
 func ServerTest(ctx context.Context) {
-	newCtx, span := internal.StartSpan(ctx, "ServerTest")
+	newCtx, span := util.StartSpan(ctx, "ServerTest")
 	clk := clock.New()
 	ai := serv(newCtx, clk)
 	client(newCtx, ai, clk)
@@ -35,14 +35,14 @@ func ServerTest(ctx context.Context) {
 }
 
 func serv(ctx context.Context, clk clock.Clock) peer.AddrInfo {
-	h, err := util.Libp2pHost(ctx, "8888")
+	h, err := tutil.Libp2pHost(ctx, "8888")
 	if err != nil {
 		panic(err)
 	}
 
 	sched := simplescheduler.NewSimpleScheduler(ctx, clk)
 	rt := simplert.NewSimpleRT(key.PeerKadID(h.ID()), 20)
-	serv := server.NewServer(ctx, h, rt, sched, []protocol.ID{consts.ProtocolDHT})
+	serv := server.NewServer(ctx, h, rt, sched, []address.ProtocolID{consts.ProtocolDHT})
 	server.SetStreamHandler(serv, serv.DefaultStreamHandler, consts.ProtocolDHT)
 
 	//p := peer.ID("12D3KooWG2qAjJvJwv4K7hrHbNVJdDzQqqwPSEezM1R3csV22yK3")
@@ -55,7 +55,7 @@ func serv(ctx context.Context, clk clock.Clock) peer.AddrInfo {
 }
 
 func client(ctx context.Context, serv peer.AddrInfo, clk clock.Clock) {
-	h, err := util.Libp2pHost(ctx, "9999")
+	h, err := tutil.Libp2pHost(ctx, "9999")
 	if err != nil {
 		panic(err)
 	}

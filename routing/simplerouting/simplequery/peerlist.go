@@ -3,7 +3,7 @@ package simplequery
 import (
 	"sort"
 
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 )
 

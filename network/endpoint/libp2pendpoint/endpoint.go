@@ -5,12 +5,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	laddr "github.com/libp2p/go-libp2p-kad-dht/network/address/libp2p"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -50,7 +50,7 @@ func getPeerID(id address.NodeID) peer.ID {
 func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context, id address.NodeID, reportFn endpoint.DialReportFn) {
 	p := getPeerID(id)
 	go func() {
-		ctx, span := internal.StartSpan(ctx, "Libp2pEndpoint.AsyncDialAndReport", trace.WithAttributes(
+		ctx, span := util.StartSpan(ctx, "Libp2pEndpoint.AsyncDialAndReport", trace.WithAttributes(
 			attribute.String("PeerID", p.String()),
 		))
 		defer span.End()
@@ -73,7 +73,7 @@ func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context, id ad
 func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
 	p := getPeerID(id)
 
-	_, span := internal.StartSpan(ctx, "Libp2pEndpoint.DialPeer", trace.WithAttributes(
+	_, span := util.StartSpan(ctx, "Libp2pEndpoint.DialPeer", trace.WithAttributes(
 		attribute.String("PeerID", p.String()),
 	))
 	defer span.End()
@@ -122,7 +122,7 @@ func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.N
 
 	p := getPeerID(id)
 
-	ctx, span := internal.StartSpan(ctx, "Libp2pEndpoint.SendRequest", trace.WithAttributes(
+	ctx, span := util.StartSpan(ctx, "Libp2pEndpoint.SendRequest", trace.WithAttributes(
 		attribute.String("PeerID", p.String()),
 	))
 	defer span.End()

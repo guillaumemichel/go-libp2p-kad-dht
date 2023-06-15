@@ -2,7 +2,7 @@ package events
 
 /*
 func RunLoop(ctx context.Context, ep *EventPlanner, queue eq.EventQueue) {
-	ctx, span := internal.StartSpan(ctx, "MainEventLoop")
+	ctx, span := util.StartSpan(ctx, "MainEventLoop")
 	defer span.End()
 
 	alarm := RunOverdueActions(ctx, ep)
@@ -35,7 +35,7 @@ func EmptyQueue(ctx context.Context, q eq.EventQueue) {
 }
 
 func RunEvent(ctx context.Context, event interface{}) {
-	ctx, span := internal.StartSpan(ctx, "RunEvent")
+	ctx, span := util.StartSpan(ctx, "RunEvent")
 	defer span.End()
 
 	switch e := event.(type) {

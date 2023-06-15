@@ -6,12 +6,12 @@ import (
 
 	"github.com/benbjohnson/clock"
 	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -80,7 +80,7 @@ func (e *FakeEndpoint) SendRequest(ctx context.Context, id address.NodeID,
 func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context, id address.NodeID,
 	msg message.MinKadMessage, handleResp endpoint.ResponseHandlerFn) {
 
-	ctx, span := internal.StartSpan(ctx, "SendRequestHandleResponse",
+	ctx, span := util.StartSpan(ctx, "SendRequestHandleResponse",
 		trace.WithAttributes(attribute.Stringer("id", id)),
 	)
 	defer span.End()

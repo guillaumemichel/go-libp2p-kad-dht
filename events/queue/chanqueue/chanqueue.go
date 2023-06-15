@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 )
 
 // ChanQueue is a trivial queue implementation using a channel
@@ -15,7 +15,7 @@ type ChanQueue struct {
 
 // NewChanQueue creates a new queue
 func NewChanQueue(ctx context.Context, capacity int) *ChanQueue {
-	_, span := internal.StartSpan(ctx, "NewChanQueue")
+	_, span := util.StartSpan(ctx, "NewChanQueue")
 	defer span.End()
 
 	return &ChanQueue{
@@ -25,7 +25,7 @@ func NewChanQueue(ctx context.Context, capacity int) *ChanQueue {
 
 // Enqueue adds an element to the queue
 func (q *ChanQueue) Enqueue(ctx context.Context, e events.Action) {
-	_, span := internal.StartSpan(ctx, "ChanQueue.Enqueue")
+	_, span := util.StartSpan(ctx, "ChanQueue.Enqueue")
 	defer span.End()
 
 	select {
@@ -37,7 +37,7 @@ func (q *ChanQueue) Enqueue(ctx context.Context, e events.Action) {
 
 // Dequeue reads the next element from the queue, note that this operation is blocking
 func (q *ChanQueue) Dequeue(ctx context.Context) events.Action {
-	_, span := internal.StartSpan(ctx, "ChanQueue.Dequeue")
+	_, span := util.StartSpan(ctx, "ChanQueue.Dequeue")
 	defer span.End()
 
 	if q.Empty() {

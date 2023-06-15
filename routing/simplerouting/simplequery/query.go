@@ -8,12 +8,12 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	message "github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p/core/peerstore"
 
@@ -70,7 +70,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 	sched scheduler.Scheduler, resultsChan chan interface{},
 	handleResultFn HandleResultFn) *SimpleQuery {
 
-	ctx, span := internal.StartSpan(ctx, "SimpleQuery.NewSimpleQuery",
+	ctx, span := util.StartSpan(ctx, "SimpleQuery.NewSimpleQuery",
 		trace.WithAttributes(attribute.String("Target", kadid.Hex())))
 	defer span.End()
 
@@ -132,7 +132,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, q.timeout)
 	defer cancel()
 
-	ctx, span := internal.StartSpan(ctx, "SimpleQuery.newRequest")
+	ctx, span := util.StartSpan(ctx, "SimpleQuery.newRequest")
 	defer span.End()
 
 	if err := q.checkIfDone(); err != nil {
@@ -179,7 +179,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 }
 
 func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, resp message.MinKadResponseMessage) {
-	ctx, span := internal.StartSpan(ctx, "SimpleQuery.handleResponse",
+	ctx, span := util.StartSpan(ctx, "SimpleQuery.handleResponse",
 		trace.WithAttributes(attribute.String("Target", q.kadid.Hex()), attribute.String("From Peer", id.String())))
 	defer span.End()
 
@@ -240,7 +240,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 }
 
 func (q *SimpleQuery) requestError(ctx context.Context, id address.NodeID, err error) {
-	ctx, span := internal.StartSpan(ctx, "SimpleQuery.requestError",
+	ctx, span := util.StartSpan(ctx, "SimpleQuery.requestError",
 		trace.WithAttributes(attribute.String("PeerID", id.String()),
 			attribute.String("Error", err.Error())))
 	defer span.End()

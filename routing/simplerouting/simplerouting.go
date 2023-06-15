@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 )

@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -55,7 +55,7 @@ func (rt *SimpleRT) AddPeer(ctx context.Context, id address.NodeID) bool {
 }
 
 func (rt *SimpleRT) addPeer(ctx context.Context, kadId key.KadKey, id address.NodeID) bool {
-	_, span := internal.StartSpan(ctx, "simplert.addPeer", trace.WithAttributes(
+	_, span := util.StartSpan(ctx, "simplert.addPeer", trace.WithAttributes(
 		attribute.String("KadID", kadId.Hex()),
 		attribute.Stringer("PeerID", id),
 	))
@@ -139,7 +139,7 @@ func (rt *SimpleRT) alreadyInBucket(kadId key.KadKey, bucketId int) bool {
 }
 
 func (rt *SimpleRT) RemovePeer(ctx context.Context, kadId key.KadKey) bool {
-	_, span := internal.StartSpan(ctx, "simplert.removePeer", trace.WithAttributes(
+	_, span := util.StartSpan(ctx, "simplert.removePeer", trace.WithAttributes(
 		attribute.String("KadID", kadId.Hex()),
 	))
 	defer span.End()
@@ -173,7 +173,7 @@ func (rt *SimpleRT) Find(kadId key.KadKey) address.NodeID {
 // TODO: not exactly working as expected
 // returns min(n, bucketSize) peers from the bucket matching the given key
 func (rt *SimpleRT) NearestPeers(ctx context.Context, kadId key.KadKey, n int) []address.NodeID {
-	_, span := internal.StartSpan(ctx, "simplert.nearestPeers", trace.WithAttributes(
+	_, span := util.StartSpan(ctx, "simplert.nearestPeers", trace.WithAttributes(
 		attribute.String("KadID", kadId.Hex()),
 		attribute.Int("n", n),
 	))

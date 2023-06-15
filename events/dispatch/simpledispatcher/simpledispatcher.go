@@ -10,10 +10,9 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
-	"github.com/libp2p/go-libp2p-kad-dht/internal/util"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -58,7 +57,7 @@ func (d *SimpleDispatcher) RemovePeer(id address.NodeID) {
 
 // DispatchTo immediately dispatches an action to a peer.
 func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a events.Action) {
-	ctx, span := internal.StartSpan(ctx, "SimpleDispatcher.DispatchTo", trace.WithAttributes(
+	ctx, span := util.StartSpan(ctx, "SimpleDispatcher.DispatchTo", trace.WithAttributes(
 		attribute.String("NodeID", to.String()),
 	))
 	defer span.End()
@@ -148,7 +147,7 @@ const (
 // DispatchLoop runs the dispatch loop. It will run until all peers have no more
 // actions to run.
 func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
-	ctx, span := internal.StartSpan(ctx, "SimpleDispatcher.DispatchLoop")
+	ctx, span := util.StartSpan(ctx, "SimpleDispatcher.DispatchLoop")
 	defer span.End()
 
 	actionID := 0

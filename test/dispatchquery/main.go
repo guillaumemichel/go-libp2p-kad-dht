@@ -17,7 +17,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
-	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/fakeendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
@@ -25,6 +24,7 @@ import (
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
+	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -34,7 +34,7 @@ var (
 )
 
 func queryTest(ctx context.Context) {
-	ctx, span := internal.StartSpan(ctx, "queryTest")
+	ctx, span := util.StartSpan(ctx, "queryTest")
 	defer span.End()
 
 	clk := clock.NewMock()

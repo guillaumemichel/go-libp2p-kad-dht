@@ -3,7 +3,7 @@ package ipfskadv1
 import (
 	"errors"
 
-	"github.com/libp2p/go-libp2p-kad-dht/internal/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	laddr "github.com/libp2p/go-libp2p-kad-dht/network/address/libp2p"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
