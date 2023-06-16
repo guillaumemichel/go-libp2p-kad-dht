@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multibase"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -43,7 +45,8 @@ func queryTest(ctx context.Context) {
 
 	// create peer A
 	selfA := peer.ID("alpha") // peer.ID is necessary for ipfskadv1 message format
-	var naddrA address.NetworkAddress = peer.AddrInfo{ID: selfA, Addrs: nil}
+	addrA := multiaddr.StringCast("/ip4/1.1.1.1/tcp/4001/")
+	var naddrA address.NetworkAddress = peer.AddrInfo{ID: selfA, Addrs: []multiaddr.Multiaddr{addrA}}
 	rtA := simplert.NewSimpleRT(address.KadID(selfA), 2)
 	endpointA := fakeendpoint.NewFakeEndpoint(clk, dispatcher)
 	schedA := ss.NewSimpleScheduler(ctx, clk)
@@ -52,12 +55,23 @@ func queryTest(ctx context.Context) {
 
 	// create peer B
 	selfB := peer.ID("beta")
-	var naddrB address.NetworkAddress = peer.AddrInfo{ID: selfB, Addrs: nil}
+	addrB := multiaddr.StringCast("/ip4/2.2.2.2/tcp/4001/")
+	var naddrB address.NetworkAddress = peer.AddrInfo{ID: selfB, Addrs: []multiaddr.Multiaddr{addrB}}
 	rtB := simplert.NewSimpleRT(address.KadID(selfB), 2)
 	endpointB := fakeendpoint.NewFakeEndpoint(clk, dispatcher)
 	schedB := ss.NewSimpleScheduler(ctx, clk)
 	servB := simserver.NewSimServer(rtB, endpointB)
 	dispatcher.AddPeer(selfB, schedB, servB)
+
+	// create peer C
+	selfC := peer.ID("gamma")
+	addrC := multiaddr.StringCast("/ip4/3.3.3.3/tcp/4001/")
+	var naddrC address.NetworkAddress = peer.AddrInfo{ID: selfC, Addrs: []multiaddr.Multiaddr{addrC}}
+	rtC := simplert.NewSimpleRT(address.KadID(selfC), 2)
+	endpointC := fakeendpoint.NewFakeEndpoint(clk, dispatcher)
+	schedC := ss.NewSimpleScheduler(ctx, clk)
+	servC := simserver.NewSimServer(rtC, endpointC)
+	dispatcher.AddPeer(selfC, schedC, servC)
 
 	// connect peer A and B
 	endpointA.MaybeAddToPeerstore(naddrB, consts.PeerstoreTTL)
@@ -65,19 +79,23 @@ func queryTest(ctx context.Context) {
 	endpointB.MaybeAddToPeerstore(naddrA, consts.PeerstoreTTL)
 	rtB.AddPeer(ctx, selfA)
 
+	// connect peer B and C
+	endpointB.MaybeAddToPeerstore(naddrC, consts.PeerstoreTTL)
+	rtB.AddPeer(ctx, selfC)
+	endpointC.MaybeAddToPeerstore(naddrB, consts.PeerstoreTTL)
+	rtC.AddPeer(ctx, selfB)
+
 	// create find peer request
 	_, bin, _ := multibase.Decode(targetBytesID)
 	target := peer.ID(bin)
 	req := ipfskadv1.FindPeerRequest(target)
 
 	// dummy parameters
-	resp := ipfskadv1.FindPeerResponse(target, []address.NodeID{}, endpointB)
-	resChan := make(chan interface{}, 100)
-	handleResp := func(ctx context.Context, s sq.QueryState, resp message.MinKadResponseMessage, c chan interface{}) sq.QueryState {
-
+	handleResp := func(ctx context.Context, s sq.QueryState, resp message.MinKadResponseMessage) sq.QueryState {
+		fmt.Println(resp.CloserNodes())
 		return nil
 	}
-	sq.NewSimpleQuery(ctx, address.KadID(target), req, resp, 1, time.Second, endpointA, rtA, schedA, resChan, handleResp)
+	sq.NewSimpleQuery(ctx, address.KadID(target), req, 1, time.Second, endpointA, rtA, schedA, handleResp)
 
 	// run simulation
 	dispatcher.DispatchLoop(ctx)

@@ -2,6 +2,7 @@ package ipfskadv1
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
@@ -66,7 +67,8 @@ func FindPeerRequest(p peer.ID) *Message {
 	marshalledPeerid, _ := p.MarshalBinary()
 	return &Message{
 		Type: Message_FIND_NODE,
-		Key:  marshalledPeerid,
+		//ClusterLevelRaw: 1,
+		Key: marshalledPeerid,
 	}
 }
 
@@ -84,8 +86,13 @@ func NodeIDsToPbPeers(peers []address.NodeID, e endpoint.Endpoint) []*Message_Pe
 	for _, n := range peers {
 		p := n.(peer.ID)
 
+		na, err := e.NetworkAddress(n)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
 		// convert NetworkAddress to []multiaddr.Multiaddr
-		addrs := e.NetworkAddress(n).(peer.AddrInfo).Addrs
+		addrs := na.(peer.AddrInfo).Addrs
 		pbAddrs := make([][]byte, len(addrs))
 		// convert multiaddresses to bytes
 		for i, a := range addrs {

@@ -47,6 +47,10 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 
 	peers := s.rt.NearestPeers(ctx, key.PeerKadID(p), consts.NClosestPeers)
 
+	span.AddEvent("Nearest peers", trace.WithAttributes(
+		attribute.Int("count", len(peers)),
+		attribute.String("peer", peers[0].String())))
+
 	resp := ipfskadv1.FindPeerResponse(p, peers, s.endpoint)
 
 	sendFn(ctx, resp)

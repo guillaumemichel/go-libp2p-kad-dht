@@ -29,7 +29,9 @@ func KadID(id NodeID) key.KadKey {
 	case peer.ID:
 		return key.PeerKadID(id)
 	}
-
+	if id == nil {
+		key.StringKadID("")
+	}
 	return key.StringKadID(id.String())
 }
 

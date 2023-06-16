@@ -2,6 +2,7 @@ package libp2pendpoint
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	laddr "github.com/libp2p/go-libp2p-kad-dht/network/address/libp2p"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -94,22 +96,68 @@ func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, id address.Node
 	return nil
 }
 
-func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(na address.NetworkAddress, ttl time.Duration) {
+func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(na address.NetworkAddress, ttl time.Duration) error {
 	ai, ok := na.(laddr.Libp2pAddr)
 	if !ok {
-		panic("invalid peer.AddrInfo")
+		return endpoint.ErrInvalidPeer
 	}
 
 	// Don't add addresses for self or our connected peers. We have better ones.
 	if ai.ID == msgEndpoint.host.ID() ||
 		msgEndpoint.host.Network().Connectedness(ai.ID) == network.Connected {
-		return
+		return nil
 	}
 	msgEndpoint.host.Peerstore().AddAddrs(ai.ID, ai.Addrs, ttl)
+	return nil
 }
 
-func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.NodeID, req message.MinKadRequestMessage,
-	resp message.MinKadResponseMessage) error {
+func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n address.NodeID, req message.MinKadMessage, responseHandlerFn endpoint.ResponseHandlerFn) {
+	go func() {
+		ctx, span := util.StartSpan(context.Background(), "Libp2pEndpoint.SendRequestHandleResponse", trace.WithAttributes(
+			attribute.String("PeerID", n.String()),
+		))
+
+		defer span.End()
+
+		protoResp := &ipfskadv1.Message{}
+		defer responseHandlerFn(ctx, protoResp)
+
+		protoReq, ok := req.(message.ProtoKadRequestMessage)
+		if !ok {
+			span.RecordError(errors.New("Libp2pEndpoint requires ProtoKadRequestMessage"))
+			return
+		}
+
+		p, ok := n.(peer.ID)
+		if !ok {
+			span.RecordError(errors.New("Libp2pEndpoint requires peer.ID"))
+			return
+		}
+
+		s, err := e.host.NewStream(ctx, p, e.protoID)
+		if err != nil {
+			span.RecordError(err, trace.WithAttributes(attribute.String("where", "stream creation")))
+			return
+		}
+		defer s.Close()
+
+		err = WriteMsg(s, protoReq)
+		if err != nil {
+			span.RecordError(err, trace.WithAttributes(attribute.String("where", "write message")))
+			return
+		}
+
+		err = ReadMsg(s, protoResp)
+		if err != nil {
+			span.RecordError(err, trace.WithAttributes(attribute.String("where", "read message")))
+		}
+
+		span.AddEvent("response received")
+	}()
+}
+
+func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.NodeID, req message.MinKadMessage,
+	resp message.MinKadMessage) error {
 
 	protoReq, ok := req.(message.ProtoKadRequestMessage)
 	if !ok {
@@ -129,20 +177,20 @@ func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.N
 
 	s, err := msgEndpoint.host.NewStream(ctx, p, msgEndpoint.protoID)
 	if err != nil {
-		span.RecordError(err)
+		span.RecordError(err, trace.WithAttributes(attribute.String("where", "stream creation")))
 		return err
 	}
 	defer s.Close()
 
 	err = WriteMsg(s, protoReq)
 	if err != nil {
-		span.RecordError(err)
+		span.RecordError(err, trace.WithAttributes(attribute.String("where", "write message")))
 		return err
 	}
 
 	err = ReadMsg(s, protoResp)
 	if err != nil {
-		span.RecordError(err)
+		span.RecordError(err, trace.WithAttributes(attribute.String("where", "read message")))
 		return err
 	}
 	return nil
@@ -160,4 +208,12 @@ func (msgEndpoint *Libp2pEndpoint) PeerInfo(id address.NodeID) peer.AddrInfo {
 
 func (e *Libp2pEndpoint) KadID() key.KadKey {
 	return key.PeerKadID(e.host.ID())
+}
+
+func (e *Libp2pEndpoint) NetworkAddress(n address.NodeID) (address.NetworkAddress, error) {
+	p, ok := n.(peer.ID)
+	if !ok {
+		return nil, errors.New("invalid peer.ID")
+	}
+	return e.host.Peerstore().PeerInfo(p), nil
 }

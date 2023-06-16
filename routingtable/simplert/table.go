@@ -34,6 +34,10 @@ func NewSimpleRT(self key.KadKey, bucketSize int) *SimpleRT {
 	return &rt
 }
 
+func (rt *SimpleRT) Self() key.KadKey {
+	return rt.self
+}
+
 func (rt *SimpleRT) BucketSize() int {
 	return rt.bucketSize
 }

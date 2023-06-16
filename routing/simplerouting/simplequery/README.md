@@ -82,3 +82,8 @@ customs functions as parameters
 ## To explore
 
 - `queryPeerFilter`
+
+## Todo 
+
+Dial and Send should be the same interface exposed by endpoint
+handle stream errors on response handling

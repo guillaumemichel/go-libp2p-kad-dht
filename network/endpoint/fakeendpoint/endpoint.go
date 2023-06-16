@@ -62,13 +62,14 @@ func (e *FakeEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
 
 // MaybeAddToPeerstore adds the given address to the peerstore. FakeEndpoint
 // doesn't take into account the ttl.
-func (e *FakeEndpoint) MaybeAddToPeerstore(na address.NetworkAddress, ttl time.Duration) {
-	if _, ok := e.peerstore[address.ID(na)]; ok {
+func (e *FakeEndpoint) MaybeAddToPeerstore(na address.NetworkAddress, ttl time.Duration) error {
+	if _, ok := e.peerstore[address.ID(na)]; !ok {
 		e.peerstore[address.ID(na)] = na
 	}
 	if _, ok := e.connStatus[address.ID(na)]; !ok {
 		e.connStatus[address.ID(na)] = network.CanConnect
 	}
+	return nil
 }
 
 func (e *FakeEndpoint) SendRequest(ctx context.Context, id address.NodeID,
@@ -99,17 +100,18 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context, id address
 
 // Peerstore functions
 func (e *FakeEndpoint) Connectedness(id address.NodeID) network.Connectedness {
-	if _, ok := e.connStatus[id]; !ok {
+	if s, ok := e.connStatus[id]; !ok {
 		return network.NotConnected
+	} else {
+		return s
 	}
-	return e.connStatus[id]
 }
 
-func (e *FakeEndpoint) NetworkAddress(id address.NodeID) address.NetworkAddress {
+func (e *FakeEndpoint) NetworkAddress(id address.NodeID) (address.NetworkAddress, error) {
 	if ai, ok := e.peerstore[id]; ok {
-		return ai
+		return ai, nil
 	}
-	return peer.AddrInfo{}
+	return peer.AddrInfo{}, endpoint.ErrUnknownPeer
 }
 
 func (e *FakeEndpoint) KadID() key.KadKey {

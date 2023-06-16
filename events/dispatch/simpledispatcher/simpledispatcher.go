@@ -187,8 +187,10 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 			return upNext[i].String() < upNext[j].String()
 		})
 
-		// "wait" minTime for the next action
-		d.clk.Set(minTime) // slow to execute (because of the mutex?)
+		if minTime.After(d.clk.Now()) {
+			// "wait" minTime for the next action
+			d.clk.Set(minTime) // slow to execute (because of the mutex?)
+		}
 
 		for len(upNext) > 0 {
 			ongoing := make([]address.NodeID, len(upNext))

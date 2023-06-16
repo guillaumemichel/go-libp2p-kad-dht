@@ -20,7 +20,10 @@ func ReadMsg(s network.Stream, msg protoreflect.ProtoMessage) error {
 }
 
 func PeerInfo(e endpoint.Endpoint, p address.NodeID) (peer.AddrInfo, error) {
-	netAddr := e.NetworkAddress(p)
+	netAddr, err := e.NetworkAddress(p)
+	if err != nil {
+		return peer.AddrInfo{}, err
+	}
 	ai, ok := netAddr.(peer.AddrInfo)
 	if !ok {
 		return peer.AddrInfo{}, ErrNotPeerAddrInfo

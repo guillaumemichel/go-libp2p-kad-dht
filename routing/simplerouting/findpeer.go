@@ -41,18 +41,17 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 
 	kadid := key.PeerKadID(p)
 	req := ipfskadv1.FindPeerRequest(p)
-	resp := &ipfskadv1.Message{}
 
 	resultsChan := make(chan interface{}) // peer.AddrInfo
-	handleResultsFn := getFindPeerHandleResultsFn(p)
+	handleResultsFn := getFindPeerHandleResultsFn(p, resultsChan)
 
 	// this serve to cancel the query (dependant on ctx) once we return a result
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// create the query and add appropriate events to the event queue
-	sq.NewSimpleQuery(ctx, kadid, req, resp, r.queryConcurrency, r.queryTimeout,
-		r.msgEndpoint, r.rt, r.sched, resultsChan, handleResultsFn)
+	sq.NewSimpleQuery(ctx, kadid, req, r.queryConcurrency, r.queryTimeout,
+		r.msgEndpoint, r.rt, r.sched, handleResultsFn)
 
 	// only one dial runs at a time to ensure sequentiality
 	dialRunning := false
@@ -145,9 +144,8 @@ func containsNewAddresses(newAddrs, oldAddrs []multiaddr.Multiaddr) (bool, []mul
 // getFindPeerHandleResultsFn returns a HandleResultsFn that checks if any
 // peer.ID of the result matches the peer.ID we are looking for. If one does,
 // it writes the result to the resultsChan and returns nil
-func getFindPeerHandleResultsFn(p peer.ID) sq.HandleResultFn {
-	return func(ctx context.Context, i sq.QueryState, m message.MinKadResponseMessage,
-		resultsChan chan interface{}) sq.QueryState {
+func getFindPeerHandleResultsFn(p peer.ID, resultsChan chan interface{}) sq.HandleResultFn {
+	return func(ctx context.Context, i sq.QueryState, m message.MinKadResponseMessage) sq.QueryState {
 
 		ctx, span := util.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")
 		defer span.End()

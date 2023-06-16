@@ -8,6 +8,7 @@ import (
 )
 
 type RoutingTable interface {
+	Self() key.KadKey
 	AddPeer(context.Context, address.NodeID) bool
 	RemovePeer(context.Context, key.KadKey) bool
 	NearestPeers(context.Context, key.KadKey, int) []address.NodeID

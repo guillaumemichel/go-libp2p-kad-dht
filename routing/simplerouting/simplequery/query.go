@@ -33,14 +33,13 @@ var (
 
 type QueryState []interface{}
 
-type HandleResultFn func(context.Context, QueryState, message.MinKadResponseMessage, chan interface{}) QueryState
+type HandleResultFn func(context.Context, QueryState, message.MinKadResponseMessage) QueryState
 
 type SimpleQuery struct {
 	ctx         context.Context
 	done        bool
 	kadid       key.KadKey
 	req         message.MinKadMessage
-	resp        message.MinKadResponseMessage
 	concurrency int
 	timeout     time.Duration
 
@@ -53,7 +52,6 @@ type SimpleQuery struct {
 
 	// success condition
 	state          QueryState
-	resultsChan    chan interface{}
 	handleResultFn HandleResultFn
 }
 
@@ -65,10 +63,9 @@ type SimpleQuery struct {
 // parameters. The query keeps track of the closest known peers to the target
 // key, and the peers that have been queried so far.
 func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMessage,
-	resp message.MinKadResponseMessage, concurrency int, timeout time.Duration,
+	concurrency int, timeout time.Duration,
 	msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
-	sched scheduler.Scheduler, resultsChan chan interface{},
-	handleResultFn HandleResultFn) *SimpleQuery {
+	sched scheduler.Scheduler, handleResultFn HandleResultFn) *SimpleQuery {
 
 	ctx, span := util.StartSpan(ctx, "SimpleQuery.NewSimpleQuery",
 		trace.WithAttributes(attribute.String("Target", kadid.Hex())))
@@ -82,7 +79,6 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 	q := &SimpleQuery{
 		ctx:              ctx,
 		req:              req,
-		resp:             resp,
 		kadid:            kadid,
 		concurrency:      concurrency,
 		timeout:          timeout,
@@ -92,7 +88,6 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 		peerlist:         peerlist,
 		sched:            sched,
 		state:            QueryState{},
-		resultsChan:      resultsChan,
 		handleResultFn:   handleResultFn,
 	}
 
@@ -121,7 +116,6 @@ func (q *SimpleQuery) checkIfDone() error {
 	case <-q.ctx.Done():
 		// query is cancelled, mark it as done
 		q.done = true
-		close(q.resultsChan)
 		return errors.New("query cancelled")
 	default:
 	}
@@ -183,10 +177,14 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 		trace.WithAttributes(attribute.String("Target", q.kadid.Hex()), attribute.String("From Peer", id.String())))
 	defer span.End()
 
+	q.inflightRequests--
+
 	if err := q.checkIfDone(); err != nil {
 		span.RecordError(err)
 		return
 	}
+
+	// TODO: handler nil repsonse
 
 	closerPeers := resp.CloserNodes()
 	if len(closerPeers) > 0 {
@@ -202,7 +200,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 
 	for _, na := range closerPeers {
 		id := address.ID(na)
-		if key.Compare(address.KadID(id), q.msgEndpoint.KadID()) == 0 {
+		if key.Compare(address.KadID(id), q.rt.Self()) == 0 {
 			// don't add self to queries or routing table
 			span.AddEvent("remote peer provided self as closer peer")
 			continue
@@ -215,7 +213,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 	addToPeerlist(q.peerlist, newPeerIds)
 
 	var stop bool
-	q.state = q.handleResultFn(ctx, q.state, resp, q.resultsChan)
+	q.state = q.handleResultFn(ctx, q.state, resp)
 	if stop {
 		// query is done, don't send any more requests
 		span.AddEvent("query success")
@@ -224,16 +222,19 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 	}
 
 	// we always want to have the maximal number of requests in flight
-	newRequestsToSend := 1 + q.concurrency - q.inflightRequests
+	newRequestsToSend := q.concurrency - q.inflightRequests
 	if q.peerlist.queuedCount < newRequestsToSend {
 		newRequestsToSend = q.peerlist.queuedCount
 	}
+
+	span.AddEvent("newRequestsToSend: " + strconv.Itoa(newRequestsToSend) + "q.inflightRequests: " + strconv.Itoa(q.inflightRequests))
 
 	for i := 0; i < newRequestsToSend; i++ {
 		// add new pending request(s) for this query to eventqueue
 		q.sched.EnqueueAction(ctx, q.newRequest)
 
 	}
+	q.inflightRequests += newRequestsToSend
 	span.AddEvent("Enqueued " + strconv.Itoa(newRequestsToSend) +
 		" SimpleQuery.newRequest")
 

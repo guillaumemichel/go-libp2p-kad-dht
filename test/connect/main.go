@@ -11,8 +11,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-
-	"github.com/libp2p/go-libp2p-kad-dht/test/testserver"
 )
 
 func main() {
@@ -38,7 +36,7 @@ func main() {
 		}
 	}(ctx)
 
-	testserver.ServerTest(ctx)
+	FindPeer(ctx)
 }
 
 // tracerProvider returns an OpenTelemetry TracerProvider configured to use
