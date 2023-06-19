@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
+	ta "github.com/libp2p/go-libp2p-kad-dht/events/action/testaction"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/stretchr/testify/require"
 )
@@ -16,12 +17,10 @@ func TestSimplePlanner(t *testing.T) {
 	clk := clock.NewMock()
 	p := NewSimplePlanner(clk)
 
-	minTimeStep := time.Nanosecond
-
 	nActions := 10
-	actions := make([]events.Action, nActions)
+	actions := make([]action.Action, nActions)
 	for i := 0; i < nActions; i++ {
-		actions[i] = i
+		actions[i] = ta.IntAction(i)
 	}
 
 	a0 := p.ScheduleAction(ctx, clk.Now().Add(time.Millisecond), actions[0])
@@ -37,14 +36,14 @@ func TestSimplePlanner(t *testing.T) {
 	p.ScheduleAction(ctx, clk.Now().Add(time.Hour), actions[4])
 	require.Empty(t, p.PopOverdueActions(ctx))
 
-	clk.Add(2*time.Second + minTimeStep)
+	clk.Add(2 * time.Second)
 	require.Equal(t, actions[2:3], p.PopOverdueActions(ctx))
 
 	clk.Add(2 * time.Minute)
-	require.Equal(t, []events.Action{actions[3], actions[1]}, p.PopOverdueActions(ctx))
+	require.Equal(t, []action.Action{actions[3], actions[1]}, p.PopOverdueActions(ctx))
 
 	p.ScheduleAction(ctx, clk.Now().Add(time.Second), actions[5])
-	clk.Add(time.Second + minTimeStep)
+	clk.Add(time.Second)
 	require.Equal(t, actions[5:6], p.PopOverdueActions(ctx))
 
 	clk.Add(time.Hour)
@@ -59,8 +58,9 @@ func TestSimplePlanner(t *testing.T) {
 
 	p.RemoveAction(ctx, a9)
 	p.RemoveAction(ctx, a0)
-	clk.Add(time.Second + minTimeStep)
+	clk.Add(time.Second)
 
+	p.RemoveAction(ctx, actions[7])
 	p.RemoveAction(ctx, a6)
 	require.Equal(t, actions[7:8], p.PopOverdueActions(ctx))
 
@@ -74,22 +74,26 @@ func TestNextActionTime(t *testing.T) {
 	p := NewSimplePlanner(clk)
 
 	clk.Set(time.Unix(0, 0))
+	actions := make([]action.Action, 3)
+	for i := 0; i < len(actions); i++ {
+		actions[i] = ta.IntAction(i)
+	}
 
 	ti := p.NextActionTime(ctx)
 	require.Equal(t, util.MaxTime, ti)
 
 	t0 := clk.Now().Add(time.Second)
-	p.ScheduleAction(ctx, t0, 0)
+	p.ScheduleAction(ctx, t0, actions[0])
 	ti = p.NextActionTime(ctx)
 	require.Equal(t, t0, ti)
 
 	t1 := clk.Now().Add(time.Hour)
-	p.ScheduleAction(ctx, t1, 1)
+	p.ScheduleAction(ctx, t1, actions[1])
 	ti = p.NextActionTime(ctx)
 	require.Equal(t, t0, ti)
 
 	t2 := clk.Now().Add(time.Millisecond)
-	p.ScheduleAction(ctx, t2, 2)
+	p.ScheduleAction(ctx, t2, actions[2])
 	ti = p.NextActionTime(ctx)
 	require.Equal(t, t2, ti)
 

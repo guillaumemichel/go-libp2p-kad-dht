@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/benbjohnson/clock"
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
@@ -56,7 +56,7 @@ func (d *SimpleDispatcher) RemovePeer(id address.NodeID) {
 }
 
 // DispatchTo immediately dispatches an action to a peer.
-func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a events.Action) {
+func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a action.Action) {
 	ctx, span := util.StartSpan(ctx, "SimpleDispatcher.DispatchTo", trace.WithAttributes(
 		attribute.String("NodeID", to.String()),
 	))
@@ -71,7 +71,7 @@ func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a 
 // between the two peers, the action will be scheduled to be dispatched after
 // the latency.
 func (d *SimpleDispatcher) Dispatch(ctx context.Context, from, to address.NodeID,
-	a events.Action) {
+	a action.Action) {
 
 	if s, ok := d.peers[to]; ok {
 		d.DispatchDelay(ctx, from, to, a, s.Now())
@@ -82,7 +82,7 @@ func (d *SimpleDispatcher) Dispatch(ctx context.Context, from, to address.NodeID
 // If a latency is set between the two peers, the action will be scheduled to be
 // dispatched after the latency.
 func (d *SimpleDispatcher) DispatchDelay(ctx context.Context, from, to address.NodeID,
-	a events.Action, t time.Time) {
+	a action.Action, t time.Time) {
 
 	if s, ok := d.peers[to]; ok {
 
@@ -136,14 +136,6 @@ func (d *SimpleDispatcher) GetLatency(from, to address.NodeID) time.Duration {
 	return 0
 }
 
-type ctxKey string
-
-const (
-	ctxPeerKey     = ctxKey("peer")
-	ctxTimeKey     = ctxKey("time")
-	ctxActionIdKey = ctxKey("actionID")
-)
-
 // DispatchLoop runs the dispatch loop. It will run until all peers have no more
 // actions to run.
 func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
@@ -173,8 +165,6 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 			break
 		}
 
-		ctx = context.WithValue(ctx, ctxTimeKey, minTime)
-
 		upNext := make([]address.NodeID, 0)
 		for id, t := range nextActions {
 			if t == minTime {
@@ -199,8 +189,6 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 			upNext = make([]address.NodeID, 0)
 			for _, id := range ongoing {
 				// run one action for this peer
-				ctx = context.WithValue(ctx, ctxPeerKey, id)
-				ctx = context.WithValue(ctx, ctxActionIdKey, actionID)
 				actionID++
 				d.peers[id].RunOne(ctx)
 			}

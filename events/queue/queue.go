@@ -3,12 +3,12 @@ package queue
 import (
 	"context"
 
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 )
 
 type EventQueue interface {
-	Enqueue(context.Context, events.Action)
-	Dequeue(context.Context) events.Action
+	Enqueue(context.Context, action.Action)
+	Dequeue(context.Context) action.Action
 
 	Size() uint
 	Close()
@@ -16,10 +16,10 @@ type EventQueue interface {
 
 type EventQueueEnqueueMany interface {
 	EventQueue
-	EnqueueMany(context.Context, []events.Action)
+	EnqueueMany(context.Context, []action.Action)
 }
 
-func EnqueueMany(ctx context.Context, q EventQueue, actions []events.Action) {
+func EnqueueMany(ctx context.Context, q EventQueue, actions []action.Action) {
 	switch queue := q.(type) {
 	case EventQueueEnqueueMany:
 		queue.EnqueueMany(ctx, actions)
@@ -31,15 +31,15 @@ func EnqueueMany(ctx context.Context, q EventQueue, actions []events.Action) {
 }
 
 type EventQueueDequeueMany interface {
-	DequeueMany(context.Context, int) []events.Action
+	DequeueMany(context.Context, int) []action.Action
 }
 
-func DequeueMany(ctx context.Context, q EventQueue, n int) []events.Action {
+func DequeueMany(ctx context.Context, q EventQueue, n int) []action.Action {
 	switch queue := q.(type) {
 	case EventQueueDequeueMany:
 		return queue.DequeueMany(ctx, n)
 	default:
-		actions := make([]events.Action, 0, n)
+		actions := make([]action.Action, 0, n)
 		for i := 0; i < n; i++ {
 			if a := q.Dequeue(ctx); a != nil {
 				actions = append(actions, a)
@@ -52,15 +52,15 @@ func DequeueMany(ctx context.Context, q EventQueue, n int) []events.Action {
 }
 
 type EventQueueDequeueAll interface {
-	DequeueAll(context.Context) []events.Action
+	DequeueAll(context.Context) []action.Action
 }
 
-func DequeueAll(ctx context.Context, q EventQueue) []events.Action {
+func DequeueAll(ctx context.Context, q EventQueue) []action.Action {
 	switch queue := q.(type) {
 	case EventQueueDequeueAll:
 		return queue.DequeueAll(ctx)
 	default:
-		actions := make([]events.Action, 0, q.Size())
+		actions := make([]action.Action, 0, q.Size())
 		for a := q.Dequeue(ctx); a != nil; a = q.Dequeue(ctx) {
 			actions = append(actions, a)
 		}

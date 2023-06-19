@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 	sp "github.com/libp2p/go-libp2p-kad-dht/events/planner/simpleplanner"
 	"github.com/libp2p/go-libp2p-kad-dht/events/queue"
@@ -37,22 +37,22 @@ func (s *SimpleScheduler) Now() time.Time {
 }
 
 // EnqueueAction enqueues an action to be run as soon as possible.
-func (s *SimpleScheduler) EnqueueAction(ctx context.Context, a events.Action) {
+func (s *SimpleScheduler) EnqueueAction(ctx context.Context, a action.Action) {
 	s.queue.Enqueue(ctx, a)
 }
 
 // ScheduleAction schedules an action to run at a specific time.
-func (s *SimpleScheduler) ScheduleAction(ctx context.Context, t time.Time, a events.Action) planner.TimedAction {
+func (s *SimpleScheduler) ScheduleAction(ctx context.Context, t time.Time, a action.Action) {
 	if s.clk.Now().After(t) {
 		s.EnqueueAction(ctx, a)
-		return nil
+		return
 	}
-	return s.planner.ScheduleAction(ctx, t, a)
+	s.planner.ScheduleAction(ctx, t, a)
 }
 
 // RemovePlannedAction removes an action from the scheduler planned actions
 // (not from the queue), does nothing if the action is not in the planner
-func (s *SimpleScheduler) RemovePlannedAction(ctx context.Context, a events.Action) {
+func (s *SimpleScheduler) RemovePlannedAction(ctx context.Context, a action.Action) {
 	s.planner.RemoveAction(ctx, a)
 }
 
@@ -69,7 +69,7 @@ func (s *SimpleScheduler) RunOne(ctx context.Context) bool {
 	s.moveOverdueActions(ctx)
 
 	if a := s.queue.Dequeue(ctx); a != nil {
-		events.Run(ctx, a)
+		a.Run(ctx)
 		return true
 	}
 	return false

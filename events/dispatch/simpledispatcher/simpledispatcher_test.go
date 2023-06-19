@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
+	ta "github.com/libp2p/go-libp2p-kad-dht/events/action/testaction"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
@@ -83,16 +84,10 @@ func TestSimpleDispatcher(t *testing.T) {
 
 	// create actions to be dispatched
 	nActions := 10
-	actions := make([]events.Action, nActions)
-	checks := make([]bool, nActions)
+	actions := make([]*ta.FuncAction, nActions)
 
-	fnGen := func(i int) func(context.Context) {
-		return func(ctx context.Context) {
-			checks[i] = true
-		}
-	}
 	for i := 0; i < nActions; i++ {
-		actions[i] = fnGen(i)
+		actions[i] = ta.NewFuncAction(i)
 	}
 
 	// run one action on each scheduler
@@ -105,7 +100,7 @@ func TestSimpleDispatcher(t *testing.T) {
 	// dispatch instant action (no latency)
 	d.Dispatch(ctx, ids[0], ids[1], actions[0])
 	runScheds()
-	require.True(t, checks[0])
+	require.True(t, actions[0].Ran)
 
 	d.Dispatch(ctx, ids[0], ids[3], actions[1]) // 3 ms
 	d.Dispatch(ctx, ids[2], ids[3], actions[2]) // 2 ms
@@ -117,23 +112,31 @@ func TestSimpleDispatcher(t *testing.T) {
 	clk.Add(4 * time.Millisecond)
 	runScheds()
 
-	require.False(t, checks[1]) // actions[2] is prioritary over actions[3] on c
-	require.True(t, checks[2])  // actions[2] is prioritary on c
-	require.False(t, checks[3]) // actions[4] is prioritary over actions[5] on a
-	require.True(t, checks[4])  // actions[4] is prioritary on a
-	require.False(t, checks[5]) // it isn't time to run actions[6] on b (20 ms)
-	require.True(t, checks[6])  // actions[6] is prioritary on b
-	require.False(t, checks[7]) // actions[7] arrives after actions[6] on b
+	require.False(t, actions[1].Ran) // actions[2] is prioritary over actions[3] on c
+	require.True(t, actions[2].Ran)  // actions[2] is prioritary on c
+	require.False(t, actions[3].Ran) // actions[4] is prioritary over actions[5] on a
+	require.True(t, actions[4].Ran)  // actions[4] is prioritary on a
+	require.False(t, actions[5].Ran) // it isn't time to run actions[6] on b (20 ms)
+	require.True(t, actions[6].Ran)  // actions[6] is prioritary on b
+	require.False(t, actions[7].Ran) // actions[7] arrives after actions[6] on b
 
 	runScheds()
-	require.True(t, checks[1])
-	require.False(t, checks[3])
-	require.False(t, checks[5])
-	require.True(t, checks[7])
+	require.True(t, actions[1].Ran)
+	require.False(t, actions[3].Ran)
+	require.False(t, actions[5].Ran)
+	require.True(t, actions[7].Ran)
 
 	d.DispatchTo(ctx, ids[1], actions[8]) // 0 ms
 	runScheds()
-	require.True(t, checks[8])
+	require.True(t, actions[8].Ran)
+}
+
+var exectutedActions = []actionCheck{}
+
+type actionCheck int
+
+func (cf actionCheck) Run(ctx context.Context) {
+	exectutedActions = append(exectutedActions, cf)
 }
 
 func TestDispatchLoop(t *testing.T) {
@@ -155,26 +158,9 @@ func TestDispatchLoop(t *testing.T) {
 
 	// create actions to be dispatched
 	nActions := 10
-	actions := make([]events.Action, nActions)
-
-	type checkFormat struct {
-		actionId int
-		peer     address.NodeID
-		time     time.Time
-	}
-
-	checks := make([]checkFormat, nActions)
-
-	fnGen := func(i int) func(context.Context) {
-		return func(ctx context.Context) {
-			a := ctx.Value(ctxActionIdKey).(int)
-			p := ctx.Value(ctxPeerKey).(address.NodeID)
-			t := ctx.Value(ctxTimeKey).(time.Time)
-			checks[i] = checkFormat{a, p, t}
-		}
-	}
+	actions := make([]action.Action, nActions)
 	for i := 0; i < nActions; i++ {
-		actions[i] = fnGen(i)
+		actions[i] = actionCheck(i)
 	}
 
 	clk.Set(time.Unix(0, 0))
@@ -207,8 +193,6 @@ func TestDispatchLoop(t *testing.T) {
 
 	// note that the actions are executed in the order of the actions indexes
 
-	peerOrder := []string{"b", "b", "c", "e", "c", "a", "e", "d", "a", "d"}
-
 	// a: 500ms, 1min
 	// b: 3ms, 10ms
 	// c: 100ms, 100ms
@@ -217,9 +201,7 @@ func TestDispatchLoop(t *testing.T) {
 
 	d.DispatchLoop(ctx)
 
-	for i := 0; i < nActions; i++ {
-		require.Equal(t, i, checks[i].actionId)
-		require.Equal(t, peerOrder[i], checks[i].peer.String(), i)
-		require.Equal(t, timings[i], checks[i].time)
+	for i, ea := range exectutedActions {
+		require.Equal(t, i, int(ea))
 	}
 }

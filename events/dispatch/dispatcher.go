@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
@@ -20,7 +20,7 @@ type Dispatcher interface {
 	RemovePeer(id address.NodeID)
 
 	// DispatchTo immediately dispatches an action to a peer.
-	DispatchTo(context.Context, address.NodeID, events.Action)
+	DispatchTo(context.Context, address.NodeID, action.Action)
 }
 
 // LatencyDispatcher is an interface for dispatching actions to peers' schedulers
@@ -30,7 +30,7 @@ type LatencyDispatcher interface {
 	// Dispatch immediately dispatches an action to a peer. If a latency is set
 	// between the two peers, the action will be scheduled to be run after
 	// this latency.
-	Dispatch(context.Context, address.NodeID, address.NodeID, events.Action)
+	Dispatch(context.Context, address.NodeID, address.NodeID, action.Action)
 
 	// SetLatency sets the latency between two peers.
 	SetLatency(address.NodeID, address.NodeID, time.Duration)
@@ -47,7 +47,7 @@ type DelayLatencyDispatcher interface {
 	// DispatchDelay schedules an action to be dispatched to a peer at a given
 	// time. If a latency is set between the two peers, the action is
 	// scheduled to be run after the provided time + latency.
-	DispatchDelay(context.Context, address.NodeID, address.NodeID, events.Action, time.Time)
+	DispatchDelay(context.Context, address.NodeID, address.NodeID, action.Action, time.Time)
 }
 
 // LoopDispatcher is an interface for dispatching actions to peers' schedulers.

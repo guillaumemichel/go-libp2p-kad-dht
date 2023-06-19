@@ -4,15 +4,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action/testaction"
 	"github.com/stretchr/testify/require"
 )
 
 func TestQueue(t *testing.T) {
 	ctx := context.Background()
 	nEvents := 10
-	events := make([]int, nEvents)
+	events := make([]action.Action, nEvents)
 	for i := 0; i < nEvents; i++ {
-		events[i] = i
+		events[i] = testaction.IntAction(i)
 	}
 	q := NewQueue(ctx)
 	if q.Size() != 0 {

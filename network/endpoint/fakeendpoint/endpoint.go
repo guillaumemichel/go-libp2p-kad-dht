@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	ba "github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
 	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
@@ -103,9 +104,9 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context, id address
 
 	req := msg
 	remoteServ := e.dispatcher.Server(id)
-	action := func(ctx context.Context) {
+	action := ba.BasicAction(func(ctx context.Context) {
 		remoteServ.HandleFindNodeRequest(ctx, e.self, req, handleResp)
-	}
+	})
 	e.dispatcher.DispatchTo(ctx, id, action)
 }
 

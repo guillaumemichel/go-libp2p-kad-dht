@@ -4,21 +4,21 @@ import (
 	"context"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/events"
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 )
 
-type TimedAction any
+type PlannedAction any
 
 // ActionPlanner is an interface for scheduling actions at a specific time.
 type ActionPlanner interface {
 	// ScheduleAction schedules an action to run at a specific time
-	ScheduleAction(context.Context, time.Time, events.Action) TimedAction
+	ScheduleAction(context.Context, time.Time, action.Action) PlannedAction
 	// RemoveAction removes an action from the planner
-	RemoveAction(context.Context, TimedAction)
+	RemoveAction(context.Context, PlannedAction)
 
 	// PopOverdueActions returns all actions that are overdue and removes them
 	// from the planner
-	PopOverdueActions(context.Context) []events.Action
+	PopOverdueActions(context.Context) []action.Action
 }
 
 // MultiActionPlanner is an interface for scheduling multiple actions at
@@ -27,27 +27,33 @@ type MultiActionPlanner interface {
 	ActionPlanner
 
 	// ScheduleActions schedules multiple actions at specific times
-	ScheduleActions(context.Context, []time.Time, []events.Action)
+	ScheduleActions(context.Context, []time.Time, []action.Action) []PlannedAction
 	// RemoveActions removes multiple actions from the planner
-	RemoveActions(context.Context, []events.Action)
+	RemoveActions(context.Context, []PlannedAction)
 }
 
 // ScheduleActions schedules multiple actions at specific times using a planner.
 func ScheduleActions(ctx context.Context, p ActionPlanner,
-	times []time.Time, actions []events.Action) {
+	times []time.Time, actions []action.Action) []PlannedAction {
+
+	if len(times) != len(actions) {
+		return nil
+	}
 
 	switch p := p.(type) {
 	case MultiActionPlanner:
-		p.ScheduleActions(ctx, times, actions)
+		return p.ScheduleActions(ctx, times, actions)
 	default:
+		res := make([]PlannedAction, len(times))
 		for i, d := range times {
 			p.ScheduleAction(ctx, d, actions[i])
 		}
+		return res
 	}
 }
 
 // RemoveActions removes multiple actions from the planner.
-func RemoveActions(ctx context.Context, p ActionPlanner, actions []events.Action) {
+func RemoveActions(ctx context.Context, p ActionPlanner, actions []PlannedAction) {
 	switch p := p.(type) {
 	case MultiActionPlanner:
 		p.RemoveActions(ctx, actions)

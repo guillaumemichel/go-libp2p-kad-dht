@@ -4,15 +4,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/libp2p/go-libp2p-kad-dht/events/action"
+	ta "github.com/libp2p/go-libp2p-kad-dht/events/action/testaction"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChanQueue(t *testing.T) {
 	ctx := context.Background()
 	nEvents := 10
-	events := make([]int, nEvents)
+	events := make([]action.Action, nEvents)
 	for i := 0; i < nEvents; i++ {
-		events[i] = i
+		events[i] = ta.IntAction(i)
 	}
 
 	q := NewChanQueue(ctx, nEvents)
@@ -61,8 +63,8 @@ func TestChanQueueMaxCapacity(t *testing.T) {
 
 	q := NewChanQueue(context.Background(), 1)
 
-	q.Enqueue(ctx, 1)
+	q.Enqueue(ctx, ta.IntAction(1))
 	require.Equal(t, uint(1), q.Size())
-	q.Enqueue(ctx, 2)
+	q.Enqueue(ctx, ta.IntAction(2))
 	require.Equal(t, uint(1), q.Size())
 }

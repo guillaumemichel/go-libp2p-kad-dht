@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
+	ba "github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
@@ -98,7 +99,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 	}
 	for i := 0; i < requestsEvents; i++ {
 		// add concurrency requests to the event queue
-		q.sched.EnqueueAction(ctx, q.newRequest)
+		q.sched.EnqueueAction(ctx, ba.BasicAction(q.newRequest))
 	}
 	span.AddEvent("Enqueued " + strconv.Itoa(requestsEvents) + " SimpleQuery.newRequest")
 	q.inflightRequests = requestsEvents
@@ -147,29 +148,31 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	// dial peer
 	if err := q.msgEndpoint.DialPeer(ctx, id); err != nil {
 		span.AddEvent("peer dial failed")
-		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
+		q.sched.EnqueueAction(ctx, ba.BasicAction(func(ctx context.Context) {
 			q.requestError(ctx, id, err)
-		})
+		}))
 		return
 	}
 
 	// add timeout to scheduler
-	timeoutAction := scheduler.ScheduleActionIn(ctx, q.sched, q.timeout, func(ctx context.Context) {
+	timeoutAction := ba.BasicAction(func(ctx context.Context) {
 		q.requestError(ctx, id, errors.New("request timeout ("+q.timeout.String()+")"))
 	})
+
+	scheduler.ScheduleActionIn(ctx, q.sched, q.timeout, timeoutAction)
 
 	// function to be executed when a response is received
 	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage, err error) {
 		span.AddEvent("got a response")
 		q.sched.RemovePlannedAction(ctx, timeoutAction)
 		if err != nil {
-			q.sched.EnqueueAction(ctx, func(ctx context.Context) {
+			q.sched.EnqueueAction(ctx, ba.BasicAction(func(ctx context.Context) {
 				q.requestError(ctx, id, err)
-			})
+			}))
 		} else {
-			q.sched.EnqueueAction(ctx, func(ctx context.Context) {
+			q.sched.EnqueueAction(ctx, ba.BasicAction(func(ctx context.Context) {
 				q.handleResponse(ctx, id, resp)
-			})
+			}))
 			span.AddEvent("Enqueued SimpleQuery.handleResponse")
 		}
 	}
@@ -240,7 +243,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 
 	for i := 0; i < newRequestsToSend; i++ {
 		// add new pending request(s) for this query to eventqueue
-		q.sched.EnqueueAction(ctx, q.newRequest)
+		q.sched.EnqueueAction(ctx, ba.BasicAction(q.newRequest))
 
 	}
 	q.inflightRequests += newRequestsToSend
@@ -270,5 +273,5 @@ func (q *SimpleQuery) requestError(ctx context.Context, id address.NodeID, err e
 	q.peerlist.updatePeerStatusInPeerlist(id, unreachable)
 
 	// add pending request for this query to eventqueue
-	q.sched.EnqueueAction(ctx, q.newRequest)
+	q.sched.EnqueueAction(ctx, ba.BasicAction(q.newRequest))
 }
