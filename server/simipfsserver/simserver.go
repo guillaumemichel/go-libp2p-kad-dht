@@ -2,8 +2,8 @@ package simipfsserver
 
 import (
 	"context"
+	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
@@ -16,6 +16,11 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+)
+
+const (
+	peerstoreTTL  = 10 * time.Minute
+	nClosestPeers = 20
 )
 
 type SimServer struct {
@@ -39,7 +44,7 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 		return
 	}
 
-	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, consts.PeerstoreTTL)
+	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, peerstoreTTL)
 
 	p := peer.ID("")
 	if p.UnmarshalBinary(req.GetKey()) != nil {
@@ -52,7 +57,7 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 		attribute.Stringer("Target", p)))
 	defer span.End()
 
-	peers := s.rt.NearestPeers(ctx, key.PeerKadID(p), consts.NClosestPeers)
+	peers := s.rt.NearestPeers(ctx, key.PeerKadID(p), nClosestPeers)
 
 	span.AddEvent("Nearest peers", trace.WithAttributes(
 		attribute.Int("count", len(peers)),

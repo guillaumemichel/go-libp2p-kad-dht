@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
-	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
@@ -29,6 +28,10 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+)
+
+const (
+	peerstoreTTL = 10 * time.Minute
 )
 
 var (
@@ -74,15 +77,15 @@ func queryTest(ctx context.Context) {
 	dispatcher.AddPeer(selfC, schedC, servC)
 
 	// connect peer A and B
-	endpointA.MaybeAddToPeerstore(ctx, naddrB, consts.PeerstoreTTL)
+	endpointA.MaybeAddToPeerstore(ctx, naddrB, peerstoreTTL)
 	rtA.AddPeer(ctx, selfB)
-	endpointB.MaybeAddToPeerstore(ctx, naddrA, consts.PeerstoreTTL)
+	endpointB.MaybeAddToPeerstore(ctx, naddrA, peerstoreTTL)
 	rtB.AddPeer(ctx, selfA)
 
 	// connect peer B and C
-	endpointB.MaybeAddToPeerstore(ctx, naddrC, consts.PeerstoreTTL)
+	endpointB.MaybeAddToPeerstore(ctx, naddrC, peerstoreTTL)
 	rtB.AddPeer(ctx, selfC)
-	endpointC.MaybeAddToPeerstore(ctx, naddrB, consts.PeerstoreTTL)
+	endpointC.MaybeAddToPeerstore(ctx, naddrB, peerstoreTTL)
 	rtC.AddPeer(ctx, selfB)
 
 	// create find peer request

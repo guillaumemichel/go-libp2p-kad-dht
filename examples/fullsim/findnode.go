@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/fakeendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
@@ -21,7 +20,8 @@ import (
 )
 
 const (
-	keysize = 32
+	keysize      = 32
+	peerstoreTTL = 10 * time.Minute
 )
 
 func zeroBytes(n int) []byte {
@@ -66,21 +66,21 @@ func findNode(ctx context.Context) {
 	}
 
 	// A connects to B
-	eps[0].MaybeAddToPeerstore(ctx, ids[1], consts.PeerstoreTTL)
+	eps[0].MaybeAddToPeerstore(ctx, ids[1], peerstoreTTL)
 	rts[0].AddPeer(ctx, ids[1])
-	eps[1].MaybeAddToPeerstore(ctx, ids[0], consts.PeerstoreTTL)
+	eps[1].MaybeAddToPeerstore(ctx, ids[0], peerstoreTTL)
 	rts[1].AddPeer(ctx, ids[0])
 
 	// B connects to C
-	eps[1].MaybeAddToPeerstore(ctx, ids[2], consts.PeerstoreTTL)
+	eps[1].MaybeAddToPeerstore(ctx, ids[2], peerstoreTTL)
 	rts[1].AddPeer(ctx, ids[2])
-	eps[2].MaybeAddToPeerstore(ctx, ids[1], consts.PeerstoreTTL)
+	eps[2].MaybeAddToPeerstore(ctx, ids[1], peerstoreTTL)
 	rts[2].AddPeer(ctx, ids[1])
 
 	// C connects to D
-	eps[2].MaybeAddToPeerstore(ctx, ids[3], consts.PeerstoreTTL)
+	eps[2].MaybeAddToPeerstore(ctx, ids[3], peerstoreTTL)
 	rts[2].AddPeer(ctx, ids[3])
-	eps[3].MaybeAddToPeerstore(ctx, ids[2], consts.PeerstoreTTL)
+	eps[3].MaybeAddToPeerstore(ctx, ids[2], peerstoreTTL)
 	rts[3].AddPeer(ctx, ids[2])
 
 	req := simmessage.NewSimRequest(ids[3])

@@ -2,8 +2,8 @@ package kadsimserver
 
 import (
 	"context"
+	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
@@ -13,6 +13,11 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+)
+
+const (
+	peerstoreTTL  = 10 * time.Minute
+	nClosestPeers = 20
 )
 
 type KadSimServer struct {
@@ -36,14 +41,14 @@ func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.
 		return
 	}
 
-	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, consts.PeerstoreTTL)
+	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, peerstoreTTL)
 
 	_, span := util.StartSpan(ctx, "SimServer.HandleFindNodeRequest", trace.WithAttributes(
 		attribute.Stringer("Requester", address.ID(rpeer)),
 		attribute.Stringer("Target", req.Target())))
 	defer span.End()
 
-	peers := s.rt.NearestPeers(ctx, req.Target(), consts.NClosestPeers)
+	peers := s.rt.NearestPeers(ctx, req.Target(), nClosestPeers)
 
 	span.AddEvent("Nearest peers", trace.WithAttributes(
 		attribute.Int("count", len(peers)),

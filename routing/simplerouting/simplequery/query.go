@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/dht/consts"
 	ba "github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
@@ -22,15 +21,15 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	// MAGIC: takes the default value from the DHT constants
-	NClosestPeers = consts.NClosestPeers
-)
-
 var (
+	// MAGIC: takes the default value from the DHT constants
+	NClosestPeers = 20
+
 	// MAGIC: default peerstore TTL for newly discovered peers
 	QueuedPeersPeerstoreTTL = peerstore.TempAddrTTL
 )
+
+// TODO: Options: NClosestPeers, QueuedPeersPeerstoreTTL, concurrency int, timeout time.Duration
 
 type QueryState []any
 

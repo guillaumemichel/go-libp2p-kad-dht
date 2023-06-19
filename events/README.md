@@ -4,11 +4,11 @@ All logic about events management including an event queue and event scheduler.
 
 Author: [Guillaume Michel](https://github.com/guillaumemichel)
 
-## Scheduler
-
-No lock in the scheduler. Only the main thread can access it.
-
 ## Event queue
+
+### Thread unsafe event queues
+
+For simulations, it is fine to have an event queue that doesn't support multithreading.
 
 ### Priority
 
