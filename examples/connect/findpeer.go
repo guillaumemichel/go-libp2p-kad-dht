@@ -11,13 +11,13 @@ import (
 	"github.com/multiformats/go-multiaddr"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
+	tutil "github.com/libp2p/go-libp2p-kad-dht/examples/util"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
-	tutil "github.com/libp2p/go-libp2p-kad-dht/test/util"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 )
 
