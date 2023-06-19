@@ -42,7 +42,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	kadid := key.PeerKadID(p)
 	req := ipfskadv1.FindPeerRequest(p)
 
-	resultsChan := make(chan interface{}) // peer.AddrInfo
+	resultsChan := make(chan any) // peer.AddrInfo
 	handleResultsFn := getFindPeerHandleResultsFn(p, resultsChan)
 
 	// this serve to cancel the query (dependant on ctx) once we return a result
@@ -144,7 +144,7 @@ func containsNewAddresses(newAddrs, oldAddrs []multiaddr.Multiaddr) (bool, []mul
 // getFindPeerHandleResultsFn returns a HandleResultsFn that checks if any
 // peer.ID of the result matches the peer.ID we are looking for. If one does,
 // it writes the result to the resultsChan and returns nil
-func getFindPeerHandleResultsFn(p peer.ID, resultsChan chan interface{}) sq.HandleResultFn {
+func getFindPeerHandleResultsFn(p peer.ID, resultsChan chan any) sq.HandleResultFn {
 	return func(ctx context.Context, i sq.QueryState, m message.MinKadResponseMessage) sq.QueryState {
 
 		ctx, span := util.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")

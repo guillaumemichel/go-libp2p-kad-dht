@@ -6,7 +6,6 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
-	laddr "github.com/libp2p/go-libp2p-kad-dht/network/address/libp2p"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -57,7 +56,7 @@ func ParsePeers(pbps []*Message_Peer) []address.NetworkAddress {
 	for _, p := range pbps {
 		pi, err := PBPeerToPeerInfo(p)
 		if err == nil {
-			peers = append(peers, laddr.Libp2pAddr(pi))
+			peers = append(peers, pi)
 		}
 	}
 	return peers

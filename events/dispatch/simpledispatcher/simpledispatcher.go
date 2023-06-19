@@ -20,7 +20,7 @@ import (
 type SimpleDispatcher struct {
 	clk       *clock.Mock
 	peers     map[address.NodeID]scheduler.AwareScheduler
-	servers   map[address.NodeID]*simserver.SimServer
+	servers   map[address.NodeID]simserver.SimServer
 	latencies map[address.NodeID]map[address.NodeID]time.Duration
 }
 
@@ -30,14 +30,14 @@ func NewSimpleDispatcher(clk *clock.Mock) *SimpleDispatcher {
 	return &SimpleDispatcher{
 		clk:       clk,
 		peers:     make(map[address.NodeID]scheduler.AwareScheduler),
-		servers:   make(map[address.NodeID]*simserver.SimServer),
+		servers:   make(map[address.NodeID]simserver.SimServer),
 		latencies: make(map[address.NodeID]map[address.NodeID]time.Duration),
 	}
 }
 
 // AddPeer adds a peer to the dispatcher. The peer must have an associated
 // scheduler.AwareScheduler, using the same mock clock as the dispatcher.
-func (d *SimpleDispatcher) AddPeer(id address.NodeID, s scheduler.Scheduler, serv *simserver.SimServer) {
+func (d *SimpleDispatcher) AddPeer(id address.NodeID, s scheduler.Scheduler, serv simserver.SimServer) {
 	switch s := s.(type) {
 	case scheduler.AwareScheduler:
 		d.peers[id] = s
@@ -216,7 +216,7 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 	}
 }
 
-func (d *SimpleDispatcher) Server(n address.NodeID) *simserver.SimServer {
+func (d *SimpleDispatcher) Server(n address.NodeID) simserver.SimServer {
 	if serv, ok := d.servers[n]; ok {
 		return serv
 	}

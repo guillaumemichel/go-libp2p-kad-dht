@@ -31,7 +31,7 @@ var (
 	QueuedPeersPeerstoreTTL = peerstore.TempAddrTTL
 )
 
-type QueryState []interface{}
+type QueryState []any
 
 type HandleResultFn func(context.Context, QueryState, message.MinKadResponseMessage) QueryState
 
@@ -73,8 +73,8 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 
 	closestPeers := rt.NearestPeers(ctx, kadid, NClosestPeers)
 
-	peerlist := newPeerList(kadid)
-	addToPeerlist(peerlist, closestPeers)
+	pl := newPeerList(kadid)
+	pl.addToPeerlist(closestPeers)
 
 	q := &SimpleQuery{
 		ctx:              ctx,
@@ -85,7 +85,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 		msgEndpoint:      msgEndpoint,
 		rt:               rt,
 		inflightRequests: 0,
-		peerlist:         peerlist,
+		peerlist:         pl,
 		sched:            sched,
 		state:            QueryState{},
 		handleResultFn:   handleResultFn,
@@ -135,7 +135,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 		return
 	}
 
-	id := popClosestQueued(q.peerlist)
+	id := q.peerlist.popClosestQueued()
 	if id == nil || id.String() == "" {
 		// TODO: handle this case
 		span.AddEvent("all peers queried")
@@ -159,13 +159,19 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	})
 
 	// function to be executed when a response is received
-	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage) {
+	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage, err error) {
 		span.AddEvent("got a response")
 		q.sched.RemovePlannedAction(ctx, timeoutAction)
-		q.sched.EnqueueAction(ctx, func(ctx context.Context) {
-			q.handleResponse(ctx, id, resp)
-		})
-		span.AddEvent("Enqueued SimpleQuery.handleResponse")
+		if err != nil {
+			q.sched.EnqueueAction(ctx, func(ctx context.Context) {
+				q.requestError(ctx, id, err)
+			})
+		} else {
+			q.sched.EnqueueAction(ctx, func(ctx context.Context) {
+				q.handleResponse(ctx, id, resp)
+			})
+			span.AddEvent("Enqueued SimpleQuery.handleResponse")
+		}
 	}
 
 	// send request
@@ -177,14 +183,17 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 		trace.WithAttributes(attribute.String("Target", q.kadid.Hex()), attribute.String("From Peer", id.String())))
 	defer span.End()
 
-	q.inflightRequests--
-
 	if err := q.checkIfDone(); err != nil {
 		span.RecordError(err)
 		return
 	}
 
-	// TODO: handler nil repsonse
+	if resp == nil {
+		span.AddEvent("response is nil")
+		q.requestError(ctx, id, errors.New("nil response"))
+	}
+
+	q.inflightRequests--
 
 	closerPeers := resp.CloserNodes()
 	if len(closerPeers) > 0 {
@@ -193,7 +202,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 		q.rt.AddPeer(ctx, id)
 	}
 
-	updatePeerStatusInPeerlist(q.peerlist, id, queried)
+	q.peerlist.updatePeerStatusInPeerlist(id, queried)
 
 	//newPeers := message.ParsePeers(ctx, closerPeers)
 	newPeerIds := make([]address.NodeID, 0, len(closerPeers))
@@ -207,10 +216,10 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 		}
 		newPeerIds = append(newPeerIds, id)
 
-		q.msgEndpoint.MaybeAddToPeerstore(na, QueuedPeersPeerstoreTTL)
+		q.msgEndpoint.MaybeAddToPeerstore(ctx, na, QueuedPeersPeerstoreTTL)
 	}
 
-	addToPeerlist(q.peerlist, newPeerIds)
+	q.peerlist.addToPeerlist(newPeerIds)
 
 	var stop bool
 	q.state = q.handleResultFn(ctx, q.state, resp)
@@ -246,6 +255,8 @@ func (q *SimpleQuery) requestError(ctx context.Context, id address.NodeID, err e
 			attribute.String("Error", err.Error())))
 	defer span.End()
 
+	q.inflightRequests--
+
 	if q.ctx.Err() == nil {
 		// remove peer from routing table unless context was cancelled
 		q.rt.RemovePeer(ctx, address.KadID(id))
@@ -256,7 +267,7 @@ func (q *SimpleQuery) requestError(ctx context.Context, id address.NodeID, err e
 		return
 	}
 
-	updatePeerStatusInPeerlist(q.peerlist, id, unreachable)
+	q.peerlist.updatePeerStatusInPeerlist(id, unreachable)
 
 	// add pending request for this query to eventqueue
 	q.sched.EnqueueAction(ctx, q.newRequest)

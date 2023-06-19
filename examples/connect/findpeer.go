@@ -57,7 +57,7 @@ func FindPeer(ctx context.Context) {
 	}
 	fmt.Println("connected to friend")
 
-	target, err := peer.Decode("QmXnMRxi3V4W8j2ZCHem2QSJoiYm7wRFzzVyZ6rZeCVmqg")
+	target, err := peer.Decode("12D3KooWMBvV4cphtBLbHQysG6c5nP265aEnXZarCPAHB2UPSGiT")
 	if err != nil {
 		panic(err)
 	}
@@ -75,14 +75,13 @@ func FindPeer(ctx context.Context) {
 			fmt.Println("invalid response!")
 			return nil
 		}
-		fmt.Println("number of peers returned", len(msg.CloserPeers))
+		fmt.Println("got response! and", len(msg.CloserPeers), "closer peers")
 		for _, p := range msg.CloserPeers {
 			pid := peer.ID("")
 			if pid.UnmarshalBinary(p.Id) != nil {
 				fmt.Println("invalid peer id format")
 				return nil
 			}
-			fmt.Println(pid)
 			if pid == target {
 				fmt.Println("found target!")
 				endCond = true
@@ -92,9 +91,9 @@ func FindPeer(ctx context.Context) {
 		return nil
 	}
 
-	simplequery.NewSimpleQuery(ctx, key.PeerKadID(friendid), req, 1, 5*time.Second, msgEndpoint, rt, sched, handleResultsFn)
+	simplequery.NewSimpleQuery(ctx, key.PeerKadID(target), req, 1, 5*time.Second, msgEndpoint, rt, sched, handleResultsFn)
 
-	for !endCond {
+	for i := 0; i < 1000 && !endCond; i++ {
 		for sched.RunOne(ctx) {
 		}
 		time.Sleep(10 * time.Millisecond)

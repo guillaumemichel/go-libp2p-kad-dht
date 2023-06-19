@@ -26,10 +26,10 @@ func TestSimpleDispatcher(t *testing.T) {
 	// creating 5 nodes, with their schedulers
 	ids := []address.NodeID{id("a"), id("b"), id("c"), id("d"), id("e")}
 	scheds := make(map[address.NodeID]*ss.SimpleScheduler)
-	servers := make(map[address.NodeID]*simserver.SimServer)
+	servers := make(map[address.NodeID]simserver.SimServer)
 	for _, id := range ids {
 		scheds[id] = ss.NewSimpleScheduler(ctx, clk)
-		servers[id] = &simserver.SimServer{}
+		servers[id] = nil
 	}
 
 	// creating dispatcher and adding peers

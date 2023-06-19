@@ -8,7 +8,6 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
-	laddr "github.com/libp2p/go-libp2p-kad-dht/network/address/libp2p"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
@@ -96,8 +95,13 @@ func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, id address.Node
 	return nil
 }
 
-func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(na address.NetworkAddress, ttl time.Duration) error {
-	ai, ok := na.(laddr.Libp2pAddr)
+func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ctx context.Context, na address.NetworkAddress, ttl time.Duration) error {
+	_, span := util.StartSpan(ctx, "Libp2pEndpoint.MaybeAddToPeerstore", trace.WithAttributes(
+		attribute.String("PeerID", address.ID(na).String()),
+	))
+	defer span.End()
+
+	ai, ok := na.(peer.AddrInfo)
 	if !ok {
 		return endpoint.ErrInvalidPeer
 	}
@@ -120,21 +124,25 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n addres
 		defer span.End()
 
 		protoResp := &ipfskadv1.Message{}
-		defer responseHandlerFn(ctx, protoResp)
+		var err error
+		defer responseHandlerFn(ctx, protoResp, err)
 
 		protoReq, ok := req.(message.ProtoKadRequestMessage)
 		if !ok {
-			span.RecordError(errors.New("Libp2pEndpoint requires ProtoKadRequestMessage"))
+			err = errors.New("Libp2pEndpoint requires ProtoKadRequestMessage")
+			span.RecordError(err)
 			return
 		}
 
 		p, ok := n.(peer.ID)
 		if !ok {
-			span.RecordError(errors.New("Libp2pEndpoint requires peer.ID"))
+			err = errors.New("Libp2pEndpoint requires peer.ID")
+			span.RecordError(err)
 			return
 		}
 
-		s, err := e.host.NewStream(ctx, p, e.protoID)
+		var s network.Stream
+		s, err = e.host.NewStream(ctx, p, e.protoID)
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("where", "stream creation")))
 			return

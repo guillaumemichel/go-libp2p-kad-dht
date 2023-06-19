@@ -14,6 +14,8 @@ func ID(na NetworkAddress) NodeID {
 		return na.ID
 	case peer.ID:
 		return na
+	case key.KadKey:
+		return na
 	}
 	return StringID{}
 }

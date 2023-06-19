@@ -4,13 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,16 +20,17 @@ import (
 type FakeEndpoint struct {
 	self address.NodeID
 
-	peerstore  map[address.NodeID]address.NetworkAddress
-	connStatus map[address.NodeID]network.Connectedness
+	peerstore  map[string]address.NetworkAddress
+	connStatus map[string]network.Connectedness
 
 	dispatcher *sd.SimpleDispatcher
 }
 
-func NewFakeEndpoint(clk *clock.Mock, dispatcher *sd.SimpleDispatcher) *FakeEndpoint {
+func NewFakeEndpoint(self address.NodeID, dispatcher *sd.SimpleDispatcher) *FakeEndpoint {
 	return &FakeEndpoint{
-		peerstore:  make(map[address.NodeID]address.NetworkAddress),
-		connStatus: make(map[address.NodeID]network.Connectedness),
+		self:       self,
+		peerstore:  make(map[string]address.NetworkAddress),
+		connStatus: make(map[string]network.Connectedness),
 
 		dispatcher: dispatcher,
 	}
@@ -44,30 +43,42 @@ func (e *FakeEndpoint) AsyncDialAndReport(ctx context.Context, id address.NodeID
 }
 
 func (e *FakeEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
-	status, ok := e.connStatus[id]
+	_, span := util.StartSpan(ctx, "DialPeer",
+		trace.WithAttributes(attribute.String("id", id.String())),
+	)
+	defer span.End()
+
+	status, ok := e.connStatus[id.String()]
 
 	if ok {
 		switch status {
 		case network.Connected:
 			return nil
 		case network.CanConnect:
-			e.connStatus[id] = network.Connected
+			e.connStatus[id.String()] = network.Connected
 			return nil
 		case network.CannotConnect:
 			return endpoint.ErrCannotConnect
 		}
 	}
+	span.RecordError(endpoint.ErrUnknownPeer)
 	return endpoint.ErrUnknownPeer
 }
 
 // MaybeAddToPeerstore adds the given address to the peerstore. FakeEndpoint
 // doesn't take into account the ttl.
-func (e *FakeEndpoint) MaybeAddToPeerstore(na address.NetworkAddress, ttl time.Duration) error {
-	if _, ok := e.peerstore[address.ID(na)]; !ok {
-		e.peerstore[address.ID(na)] = na
+func (e *FakeEndpoint) MaybeAddToPeerstore(ctx context.Context, na address.NetworkAddress, ttl time.Duration) error {
+	_, span := util.StartSpan(ctx, "MaybeAddToPeerstore",
+		trace.WithAttributes(attribute.String("self", e.self.String())),
+		trace.WithAttributes(attribute.String("id", address.ID(na).String())),
+	)
+	defer span.End()
+
+	if _, ok := e.peerstore[address.ID(na).String()]; !ok {
+		e.peerstore[address.ID(na).String()] = na
 	}
-	if _, ok := e.connStatus[address.ID(na)]; !ok {
-		e.connStatus[address.ID(na)] = network.CanConnect
+	if _, ok := e.connStatus[address.ID(na).String()]; !ok {
+		e.connStatus[address.ID(na).String()] = network.CanConnect
 	}
 	return nil
 }
@@ -90,9 +101,9 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context, id address
 		return
 	}
 
-	req := msg.(*ipfskadv1.Message)
+	req := msg
 	remoteServ := e.dispatcher.Server(id)
-	action := func() {
+	action := func(ctx context.Context) {
 		remoteServ.HandleFindNodeRequest(ctx, e.self, req, handleResp)
 	}
 	e.dispatcher.DispatchTo(ctx, id, action)
@@ -100,7 +111,7 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context, id address
 
 // Peerstore functions
 func (e *FakeEndpoint) Connectedness(id address.NodeID) network.Connectedness {
-	if s, ok := e.connStatus[id]; !ok {
+	if s, ok := e.connStatus[id.String()]; !ok {
 		return network.NotConnected
 	} else {
 		return s
@@ -108,7 +119,7 @@ func (e *FakeEndpoint) Connectedness(id address.NodeID) network.Connectedness {
 }
 
 func (e *FakeEndpoint) NetworkAddress(id address.NodeID) (address.NetworkAddress, error) {
-	if ai, ok := e.peerstore[id]; ok {
+	if ai, ok := e.peerstore[id.String()]; ok {
 		return ai, nil
 	}
 	return peer.AddrInfo{}, endpoint.ErrUnknownPeer

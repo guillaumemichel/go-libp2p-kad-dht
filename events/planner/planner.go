@@ -7,7 +7,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events"
 )
 
-type TimedAction interface{}
+type TimedAction any
 
 // ActionPlanner is an interface for scheduling actions at a specific time.
 type ActionPlanner interface {

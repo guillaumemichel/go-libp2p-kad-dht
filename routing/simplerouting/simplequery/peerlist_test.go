@@ -31,7 +31,7 @@ func TestAddPeers(t *testing.T) {
 	// peerids[3]: 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
 
 	// add 4 peers (incl. 1 duplicate)
-	addToPeerlist(pl, peerids)
+	pl.addToPeerlist(peerids)
 
 	require.Equal(t, nPeers, pl.queuedCount)
 
@@ -70,7 +70,7 @@ func TestAddPeers(t *testing.T) {
 	// newPeerids[6]: 4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
 
 	// add 7 peers (incl. 2 duplicates)
-	addToPeerlist(pl, newPeerids)
+	pl.addToPeerlist(newPeerids)
 
 	require.Equal(t, 8, pl.queuedCount)
 
@@ -91,7 +91,7 @@ func TestAddPeers(t *testing.T) {
 	// add a single peer that isn't the closest one
 	newPeer := peer.ID(byte(20))
 
-	addToPeerlist(pl, []address.NodeID{newPeer})
+	pl.addToPeerlist([]address.NodeID{newPeer})
 	order = append(order[:5], order[4:]...)
 	order[4] = newPeer
 
@@ -117,7 +117,7 @@ func TestPeerlistCornerCases(t *testing.T) {
 		require.Nil(t, sliceToPeerInfos(key.ZeroKey, peerids))
 
 		pl := newPeerList(key.ZeroKey)
-		addToPeerlist(pl, peerids)
+		pl.addToPeerlist(peerids)
 		require.Nil(t, pl.closest)
 		require.Nil(t, pl.closestQueued)
 		require.Equal(t, 0, pl.queuedCount)
@@ -127,21 +127,21 @@ func TestPeerlistCornerCases(t *testing.T) {
 
 	singlePeerList0 := []address.NodeID{peer.ID(byte(0))}
 	// 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
-	addToPeerlist(pl, singlePeerList0)
+	pl.addToPeerlist(singlePeerList0)
 	require.Equal(t, singlePeerList0[0], pl.closest.id)
 	require.Equal(t, singlePeerList0[0], pl.closestQueued.id)
 	require.Equal(t, 1, pl.queuedCount)
 
 	singlePeerList1 := []address.NodeID{peer.ID(byte(1))}
 	// 4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
-	addToPeerlist(pl, singlePeerList1)
+	pl.addToPeerlist(singlePeerList1)
 	require.Equal(t, singlePeerList1[0], pl.closest.id)
 	require.Equal(t, singlePeerList1[0], pl.closest.id)
 	require.Equal(t, 2, pl.queuedCount)
 
 	singlePeerList2 := []address.NodeID{peer.ID(byte(2))}
 	// dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986
-	addToPeerlist(pl, singlePeerList2)
+	pl.addToPeerlist(singlePeerList2)
 	require.Equal(t, 3, pl.queuedCount)
 
 	curr := pl.closest
@@ -165,7 +165,7 @@ func TestUpdatePeerStatusInPeerlist(t *testing.T) {
 		peerids[i] = peer.ID(byte(i))
 	}
 
-	addToPeerlist(pl, peerids)
+	pl.addToPeerlist(peerids)
 
 	require.Equal(t, 3, pl.queuedCount)
 
@@ -174,9 +174,9 @@ func TestUpdatePeerStatusInPeerlist(t *testing.T) {
 	// peerids[0], queued, 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
 	// peerids[2], queued, dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986
 
-	updatePeerStatusInPeerlist(pl, peerids[0], waiting)
+	pl.updatePeerStatusInPeerlist(peerids[0], waiting)
 	require.Equal(t, 2, pl.queuedCount)
-	updatePeerStatusInPeerlist(pl, peerids[1], unreachable)
+	pl.updatePeerStatusInPeerlist(peerids[1], unreachable)
 	require.Equal(t, 1, pl.queuedCount)
 
 	curr := pl.closest
@@ -200,7 +200,7 @@ func TestPopClosestQueued(t *testing.T) {
 		peerids[i] = peer.ID(byte(i))
 	}
 
-	addToPeerlist(pl, peerids)
+	pl.addToPeerlist(peerids)
 	require.Equal(t, 3, pl.queuedCount)
 
 	// initial queue state
@@ -208,47 +208,47 @@ func TestPopClosestQueued(t *testing.T) {
 	// peerids[0], queued, 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
 	// peerids[2], queued, dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986
 
-	require.Equal(t, peerids[1], popClosestQueued(pl))
+	require.Equal(t, peerids[1], pl.popClosestQueued())
 	require.Equal(t, peerids[1], pl.closest.id)
 	require.Equal(t, peerids[0], pl.closestQueued.id)
 	require.Equal(t, 2, pl.queuedCount)
-	require.Equal(t, peerids[0], popClosestQueued(pl))
+	require.Equal(t, peerids[0], pl.popClosestQueued())
 	require.Equal(t, peerids[1], pl.closest.id)
 	require.Equal(t, peerids[2], pl.closestQueued.id)
 	require.Equal(t, 1, pl.queuedCount)
-	require.Equal(t, peerids[2], popClosestQueued(pl))
+	require.Equal(t, peerids[2], pl.popClosestQueued())
 	require.Equal(t, 0, pl.queuedCount)
-	require.Equal(t, nil, popClosestQueued(pl))
+	require.Equal(t, nil, pl.popClosestQueued())
 	require.Equal(t, 0, pl.queuedCount)
 
 	pl = newPeerList(key.ZeroKey)
 
-	addToPeerlist(pl, peerids)
+	pl.addToPeerlist(peerids)
 	require.Equal(t, 3, pl.queuedCount)
 
 	// mark second item (peerids[0]) as waiting
-	updatePeerStatusInPeerlist(pl, peerids[0], waiting)
+	pl.updatePeerStatusInPeerlist(peerids[0], waiting)
 	require.Equal(t, peerids[1], pl.closest.id)
 	require.Equal(t, peerids[1], pl.closestQueued.id)
 	require.Equal(t, 2, pl.queuedCount)
 
 	// pop closest queued (peerids[1])
-	require.Equal(t, peerids[1], popClosestQueued(pl))
+	require.Equal(t, peerids[1], pl.popClosestQueued())
 	require.Equal(t, peerids[1], pl.closest.id)
 	// peerids[2] is now closestQueued
 	require.Equal(t, peerids[2], pl.closestQueued.id)
 	require.Equal(t, 1, pl.queuedCount)
 
-	updatePeerStatusInPeerlist(pl, peerids[2], unreachable)
+	pl.updatePeerStatusInPeerlist(peerids[2], unreachable)
 	require.Equal(t, peerids[1], pl.closest.id)
 	require.Equal(t, 0, pl.queuedCount)
 	require.Nil(t, pl.closestQueued)
 	require.Equal(t, 0, pl.queuedCount)
 
-	updatePeerStatusInPeerlist(pl, peerids[1], queued)
+	pl.updatePeerStatusInPeerlist(peerids[1], queued)
 	require.Equal(t, peerids[1], pl.closestQueued.id)
 	require.Equal(t, 1, pl.queuedCount)
-	updatePeerStatusInPeerlist(pl, peerids[2], queued)
+	pl.updatePeerStatusInPeerlist(peerids[2], queued)
 	require.Equal(t, peerids[1], pl.closestQueued.id)
 	require.Equal(t, 2, pl.queuedCount)
 }

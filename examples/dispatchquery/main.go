@@ -25,7 +25,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
-	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
+	"github.com/libp2p/go-libp2p-kad-dht/server/simipfsserver"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -48,9 +48,9 @@ func queryTest(ctx context.Context) {
 	addrA := multiaddr.StringCast("/ip4/1.1.1.1/tcp/4001/")
 	var naddrA address.NetworkAddress = peer.AddrInfo{ID: selfA, Addrs: []multiaddr.Multiaddr{addrA}}
 	rtA := simplert.NewSimpleRT(address.KadID(selfA), 2)
-	endpointA := fakeendpoint.NewFakeEndpoint(clk, dispatcher)
+	endpointA := fakeendpoint.NewFakeEndpoint(selfA, dispatcher)
 	schedA := ss.NewSimpleScheduler(ctx, clk)
-	servA := simserver.NewSimServer(rtA, endpointA)
+	servA := simipfsserver.NewSimServer(rtA, endpointA)
 	dispatcher.AddPeer(selfA, schedA, servA)
 
 	// create peer B
@@ -58,9 +58,9 @@ func queryTest(ctx context.Context) {
 	addrB := multiaddr.StringCast("/ip4/2.2.2.2/tcp/4001/")
 	var naddrB address.NetworkAddress = peer.AddrInfo{ID: selfB, Addrs: []multiaddr.Multiaddr{addrB}}
 	rtB := simplert.NewSimpleRT(address.KadID(selfB), 2)
-	endpointB := fakeendpoint.NewFakeEndpoint(clk, dispatcher)
+	endpointB := fakeendpoint.NewFakeEndpoint(selfB, dispatcher)
 	schedB := ss.NewSimpleScheduler(ctx, clk)
-	servB := simserver.NewSimServer(rtB, endpointB)
+	servB := simipfsserver.NewSimServer(rtB, endpointB)
 	dispatcher.AddPeer(selfB, schedB, servB)
 
 	// create peer C
@@ -68,21 +68,21 @@ func queryTest(ctx context.Context) {
 	addrC := multiaddr.StringCast("/ip4/3.3.3.3/tcp/4001/")
 	var naddrC address.NetworkAddress = peer.AddrInfo{ID: selfC, Addrs: []multiaddr.Multiaddr{addrC}}
 	rtC := simplert.NewSimpleRT(address.KadID(selfC), 2)
-	endpointC := fakeendpoint.NewFakeEndpoint(clk, dispatcher)
+	endpointC := fakeendpoint.NewFakeEndpoint(selfC, dispatcher)
 	schedC := ss.NewSimpleScheduler(ctx, clk)
-	servC := simserver.NewSimServer(rtC, endpointC)
+	servC := simipfsserver.NewSimServer(rtC, endpointC)
 	dispatcher.AddPeer(selfC, schedC, servC)
 
 	// connect peer A and B
-	endpointA.MaybeAddToPeerstore(naddrB, consts.PeerstoreTTL)
+	endpointA.MaybeAddToPeerstore(ctx, naddrB, consts.PeerstoreTTL)
 	rtA.AddPeer(ctx, selfB)
-	endpointB.MaybeAddToPeerstore(naddrA, consts.PeerstoreTTL)
+	endpointB.MaybeAddToPeerstore(ctx, naddrA, consts.PeerstoreTTL)
 	rtB.AddPeer(ctx, selfA)
 
 	// connect peer B and C
-	endpointB.MaybeAddToPeerstore(naddrC, consts.PeerstoreTTL)
+	endpointB.MaybeAddToPeerstore(ctx, naddrC, consts.PeerstoreTTL)
 	rtB.AddPeer(ctx, selfC)
-	endpointC.MaybeAddToPeerstore(naddrB, consts.PeerstoreTTL)
+	endpointC.MaybeAddToPeerstore(ctx, naddrB, consts.PeerstoreTTL)
 	rtC.AddPeer(ctx, selfB)
 
 	// create find peer request

@@ -42,7 +42,7 @@ func newPeerList(target key.KadKey) *peerList {
 
 // normally peers should already be ordered with distance to target, but we
 // sort them just in case
-func addToPeerlist(pl *peerList, ids []address.NodeID) {
+func (pl *peerList) addToPeerlist(ids []address.NodeID) {
 
 	// linked list of new peers sorted by distance to target
 	newHead := sliceToPeerInfos(pl.target, ids)
@@ -176,7 +176,7 @@ func addrInfoToPeerInfo(target key.KadKey, id address.NodeID) *peerInfo {
 	}
 }
 
-func updatePeerStatusInPeerlist(pl *peerList, id address.NodeID, newStatus peerStatus) {
+func (pl *peerList) updatePeerStatusInPeerlist(id address.NodeID, newStatus peerStatus) {
 	curr := pl.closest
 	for curr != nil && curr.id.String() != id.String() {
 		curr = curr.next
@@ -206,7 +206,7 @@ func updatePeerStatusInPeerlist(pl *peerList, id address.NodeID, newStatus peerS
 	}
 }
 
-func popClosestQueued(pl *peerList) address.NodeID {
+func (pl *peerList) popClosestQueued() address.NodeID {
 	if pl.closestQueued == nil {
 		return nil
 	}
