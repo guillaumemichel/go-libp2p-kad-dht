@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
@@ -51,19 +51,24 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 		// invalid requested key (not a peer.ID)
 		return
 	}
+	pid := peerid.PeerID{ID: p}
 
 	_, span := util.StartSpan(ctx, "SimServer.HandleFindNodeRequest", trace.WithAttributes(
-		attribute.Stringer("Requester", address.ID(rpeer)),
+		attribute.Stringer("Requester", rpeer.NodeID()),
 		attribute.Stringer("Target", p)))
 	defer span.End()
 
-	peers := s.rt.NearestPeers(ctx, key.PeerKadID(p), nClosestPeers)
+	peers, err := s.rt.NearestPeers(ctx, pid.Key(), nClosestPeers)
+	if err != nil {
+		span.RecordError(err)
+		return
+	}
 
 	span.AddEvent("Nearest peers", trace.WithAttributes(
 		attribute.Int("count", len(peers)),
 		attribute.String("peer", peers[0].String())))
 
-	resp := ipfskadv1.FindPeerResponse(p, peers, s.endpoint)
+	resp := ipfskadv1.FindPeerResponse(pid, peers, s.endpoint)
 
 	sendFn(ctx, resp, nil)
 }

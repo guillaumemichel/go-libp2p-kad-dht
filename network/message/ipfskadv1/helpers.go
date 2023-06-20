@@ -6,6 +6,9 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/addrinfo"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
+
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -19,9 +22,9 @@ var (
 func (msg *Message) Target() key.KadKey {
 	p, err := peer.IDFromBytes(msg.GetKey())
 	if err != nil {
-		return key.KadKey{}
+		return nil
 	}
-	return key.PeerKadID(p)
+	return peerid.PeerID{ID: p}.Key()
 }
 
 func (msg *Message) CloserNodes() []address.NetworkAddress {
@@ -32,7 +35,7 @@ func (msg *Message) CloserNodes() []address.NetworkAddress {
 	return ParsePeers(closerPeers)
 }
 
-func PBPeerToPeerInfo(pbp *Message_Peer) (peer.AddrInfo, error) {
+func PBPeerToPeerInfo(pbp *Message_Peer) (addrinfo.AddrInfo, error) {
 	addrs := make([]multiaddr.Multiaddr, 0, len(pbp.Addrs))
 	for _, a := range pbp.Addrs {
 		addr, err := multiaddr.NewMultiaddrBytes(a)
@@ -41,12 +44,14 @@ func PBPeerToPeerInfo(pbp *Message_Peer) (peer.AddrInfo, error) {
 		}
 	}
 	if len(addrs) == 0 {
-		return peer.AddrInfo{}, ErrNoValidAddresses
+		return addrinfo.AddrInfo{}, ErrNoValidAddresses
 	}
 
-	return peer.AddrInfo{
-		ID:    peer.ID(pbp.Id),
-		Addrs: addrs,
+	return addrinfo.AddrInfo{
+		AddrInfo: peer.AddrInfo{
+			ID:    peer.ID(pbp.Id),
+			Addrs: addrs,
+		},
 	}, nil
 }
 
@@ -62,7 +67,7 @@ func ParsePeers(pbps []*Message_Peer) []address.NetworkAddress {
 	return peers
 }
 
-func FindPeerRequest(p peer.ID) *Message {
+func FindPeerRequest(p peerid.PeerID) *Message {
 	marshalledPeerid, _ := p.MarshalBinary()
 	return &Message{
 		Type: Message_FIND_NODE,
@@ -71,7 +76,7 @@ func FindPeerRequest(p peer.ID) *Message {
 	}
 }
 
-func FindPeerResponse(p peer.ID, peers []address.NodeID, e endpoint.Endpoint) *Message {
+func FindPeerResponse(p peerid.PeerID, peers []address.NodeID, e endpoint.Endpoint) *Message {
 	marshalledPeerid, _ := p.MarshalBinary()
 	return &Message{
 		Type:        Message_FIND_NODE,
@@ -83,7 +88,7 @@ func FindPeerResponse(p peer.ID, peers []address.NodeID, e endpoint.Endpoint) *M
 func NodeIDsToPbPeers(peers []address.NodeID, e endpoint.Endpoint) []*Message_Peer {
 	pbPeers := make([]*Message_Peer, 0, len(peers))
 	for _, n := range peers {
-		p := n.(peer.ID)
+		p := n.(peerid.PeerID)
 
 		na, err := e.NetworkAddress(n)
 		if err != nil {
@@ -91,7 +96,7 @@ func NodeIDsToPbPeers(peers []address.NodeID, e endpoint.Endpoint) []*Message_Pe
 			continue
 		}
 		// convert NetworkAddress to []multiaddr.Multiaddr
-		addrs := na.(peer.AddrInfo).Addrs
+		addrs := na.(addrinfo.AddrInfo).Addrs
 		pbAddrs := make([][]byte, len(addrs))
 		// convert multiaddresses to bytes
 		for i, a := range addrs {
@@ -99,7 +104,7 @@ func NodeIDsToPbPeers(peers []address.NodeID, e endpoint.Endpoint) []*Message_Pe
 		}
 
 		pbPeers = append(pbPeers, &Message_Peer{
-			Id:         []byte(p),
+			Id:         []byte(p.ID),
 			Addrs:      pbAddrs,
 			Connection: Message_ConnectionType(e.Connectedness(n)),
 		})
@@ -107,12 +112,12 @@ func NodeIDsToPbPeers(peers []address.NodeID, e endpoint.Endpoint) []*Message_Pe
 	return pbPeers
 }
 
-func PeeridsToPbPeers(peers []peer.ID, h host.Host) []*Message_Peer {
+func PeeridsToPbPeers(peers []peerid.PeerID, h host.Host) []*Message_Peer {
 
 	pbPeers := make([]*Message_Peer, 0, len(peers))
 
 	for _, p := range peers {
-		addrs := h.Peerstore().Addrs(p)
+		addrs := h.Peerstore().Addrs(p.ID)
 		if len(addrs) == 0 {
 			// if no addresses, don't send peer
 			continue
@@ -124,9 +129,9 @@ func PeeridsToPbPeers(peers []peer.ID, h host.Host) []*Message_Peer {
 			pbAddrs[i] = a.Bytes()
 		}
 		pbPeers = append(pbPeers, &Message_Peer{
-			Id:         []byte(p),
+			Id:         []byte(p.ID),
 			Addrs:      pbAddrs,
-			Connection: Message_ConnectionType(h.Network().Connectedness(p)),
+			Connection: Message_ConnectionType(h.Network().Connectedness(p.ID)),
 		})
 	}
 	return pbPeers

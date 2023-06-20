@@ -19,9 +19,9 @@ import (
 // SimpleDispatcher is a simple implementation of a LoopDispatcher.
 type SimpleDispatcher struct {
 	clk       *clock.Mock
-	peers     map[address.NodeID]scheduler.AwareScheduler
-	servers   map[address.NodeID]simserver.SimServer
-	latencies map[address.NodeID]map[address.NodeID]time.Duration
+	peers     map[string]scheduler.AwareScheduler
+	servers   map[string]simserver.SimServer
+	latencies map[string]map[string]time.Duration
 }
 
 // NewSimpleDispatcher creates a new SimpleDispatcher. The provided mock clock
@@ -29,9 +29,9 @@ type SimpleDispatcher struct {
 func NewSimpleDispatcher(clk *clock.Mock) *SimpleDispatcher {
 	return &SimpleDispatcher{
 		clk:       clk,
-		peers:     make(map[address.NodeID]scheduler.AwareScheduler),
-		servers:   make(map[address.NodeID]simserver.SimServer),
-		latencies: make(map[address.NodeID]map[address.NodeID]time.Duration),
+		peers:     make(map[string]scheduler.AwareScheduler),
+		servers:   make(map[string]simserver.SimServer),
+		latencies: make(map[string]map[string]time.Duration),
 	}
 }
 
@@ -40,19 +40,19 @@ func NewSimpleDispatcher(clk *clock.Mock) *SimpleDispatcher {
 func (d *SimpleDispatcher) AddPeer(id address.NodeID, s scheduler.Scheduler, serv simserver.SimServer) {
 	switch s := s.(type) {
 	case scheduler.AwareScheduler:
-		d.peers[id] = s
+		d.peers[id.String()] = s
 	}
-	d.servers[id] = serv
+	d.servers[id.String()] = serv
 }
 
 // RemovePeer removes a peer from the dispatcher.
 func (d *SimpleDispatcher) RemovePeer(id address.NodeID) {
-	delete(d.peers, id)
-	delete(d.latencies, id)
+	delete(d.peers, id.String())
+	delete(d.latencies, id.String())
 	for _, l := range d.latencies {
-		delete(l, id)
+		delete(l, id.String())
 	}
-	delete(d.servers, id)
+	delete(d.servers, id.String())
 }
 
 // DispatchTo immediately dispatches an action to a peer.
@@ -62,7 +62,7 @@ func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a 
 	))
 	defer span.End()
 
-	if s, ok := d.peers[to]; ok {
+	if s, ok := d.peers[to.String()]; ok {
 		s.EnqueueAction(ctx, a)
 	}
 }
@@ -73,7 +73,7 @@ func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a 
 func (d *SimpleDispatcher) Dispatch(ctx context.Context, from, to address.NodeID,
 	a action.Action) {
 
-	if s, ok := d.peers[to]; ok {
+	if s, ok := d.peers[to.String()]; ok {
 		d.DispatchDelay(ctx, from, to, a, s.Now())
 	}
 }
@@ -84,7 +84,7 @@ func (d *SimpleDispatcher) Dispatch(ctx context.Context, from, to address.NodeID
 func (d *SimpleDispatcher) DispatchDelay(ctx context.Context, from, to address.NodeID,
 	a action.Action, t time.Time) {
 
-	if s, ok := d.peers[to]; ok {
+	if s, ok := d.peers[to.String()]; ok {
 
 		l := d.GetLatency(from, to)
 
@@ -103,7 +103,7 @@ func (d *SimpleDispatcher) DispatchDelay(ctx context.Context, from, to address.N
 // network latencies.
 func (d *SimpleDispatcher) SetLatency(from, to address.NodeID, l time.Duration) {
 	for _, n := range []address.NodeID{from, to} {
-		if _, ok := d.peers[n]; !ok {
+		if _, ok := d.peers[n.String()]; !ok {
 			return
 		}
 	}
@@ -114,10 +114,10 @@ func (d *SimpleDispatcher) SetLatency(from, to address.NodeID, l time.Duration) 
 		from, to = to, from
 	}
 
-	if _, ok := d.latencies[from]; !ok {
-		d.latencies[from] = make(map[address.NodeID]time.Duration)
+	if _, ok := d.latencies[from.String()]; !ok {
+		d.latencies[from.String()] = make(map[string]time.Duration)
 	}
-	d.latencies[from][to] = l
+	d.latencies[from.String()][to.String()] = l
 }
 
 // GetLatency returns the latency defined between two peers.
@@ -128,8 +128,8 @@ func (d *SimpleDispatcher) GetLatency(from, to address.NodeID) time.Duration {
 		from, to = to, from
 	}
 
-	if latencies, ok := d.latencies[from]; ok {
-		if latency, ok := latencies[to]; ok {
+	if latencies, ok := d.latencies[from.String()]; ok {
+		if latency, ok := latencies[to.String()]; ok {
 			return latency
 		}
 	}
@@ -145,7 +145,7 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 	actionID := 0
 
 	// get the next action time for each peer
-	nextActions := make(map[address.NodeID]time.Time)
+	nextActions := make(map[string]time.Time)
 	for id, s := range d.peers {
 		nextActions[id] = s.NextActionTime(ctx)
 	}
@@ -165,7 +165,7 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 			break
 		}
 
-		upNext := make([]address.NodeID, 0)
+		upNext := make([]string, 0)
 		for id, t := range nextActions {
 			if t == minTime {
 				upNext = append(upNext, id)
@@ -174,7 +174,7 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 		// sort the peers by ID to ensure deterministic behavior, because map
 		// iteration order is non-deterministic
 		sort.Slice(upNext, func(i, j int) bool {
-			return upNext[i].String() < upNext[j].String()
+			return upNext[i] < upNext[j]
 		})
 
 		if minTime.After(d.clk.Now()) {
@@ -183,10 +183,10 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 		}
 
 		for len(upNext) > 0 {
-			ongoing := make([]address.NodeID, len(upNext))
+			ongoing := make([]string, len(upNext))
 			copy(ongoing, upNext)
 
-			upNext = make([]address.NodeID, 0)
+			upNext = make([]string, 0)
 			for _, id := range ongoing {
 				// run one action for this peer
 				actionID++
@@ -205,7 +205,7 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 }
 
 func (d *SimpleDispatcher) Server(n address.NodeID) simserver.SimServer {
-	if serv, ok := d.servers[n]; ok {
+	if serv, ok := d.servers[n.String()]; ok {
 		return serv
 	}
 	return nil

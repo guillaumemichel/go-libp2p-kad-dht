@@ -21,7 +21,7 @@ type Endpoint interface {
 	SendRequestHandleResponse(context.Context, address.NodeID, message.MinKadMessage, ResponseHandlerFn)
 
 	// Peerstore functions
-	KadID() key.KadKey
+	KadKey() key.KadKey
 	Connectedness(address.NodeID) network.Connectedness
 	NetworkAddress(address.NodeID) (address.NetworkAddress, error)
 }

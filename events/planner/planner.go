@@ -7,7 +7,14 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 )
 
-type PlannedAction any
+// PlannedAction is an interface for actions that are scheduled to run at a
+// specific time.
+type PlannedAction interface {
+	// Time returns the time at which the action is scheduled to run
+	Time() time.Time
+	// Action returns the action that is scheduled to run
+	Action() action.Action
+}
 
 // ActionPlanner is an interface for scheduling actions at a specific time.
 type ActionPlanner interface {

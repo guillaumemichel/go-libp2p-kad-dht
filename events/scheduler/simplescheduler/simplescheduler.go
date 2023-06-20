@@ -42,17 +42,18 @@ func (s *SimpleScheduler) EnqueueAction(ctx context.Context, a action.Action) {
 }
 
 // ScheduleAction schedules an action to run at a specific time.
-func (s *SimpleScheduler) ScheduleAction(ctx context.Context, t time.Time, a action.Action) {
+func (s *SimpleScheduler) ScheduleAction(ctx context.Context, t time.Time,
+	a action.Action) planner.PlannedAction {
 	if s.clk.Now().After(t) {
 		s.EnqueueAction(ctx, a)
-		return
+		return nil
 	}
-	s.planner.ScheduleAction(ctx, t, a)
+	return s.planner.ScheduleAction(ctx, t, a)
 }
 
 // RemovePlannedAction removes an action from the scheduler planned actions
 // (not from the queue), does nothing if the action is not in the planner
-func (s *SimpleScheduler) RemovePlannedAction(ctx context.Context, a action.Action) {
+func (s *SimpleScheduler) RemovePlannedAction(ctx context.Context, a planner.PlannedAction) {
 	s.planner.RemoveAction(ctx, a)
 }
 

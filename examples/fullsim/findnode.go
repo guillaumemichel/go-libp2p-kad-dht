@@ -7,6 +7,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/kadid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/fakeendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
@@ -41,11 +42,11 @@ func findNode(ctx context.Context) {
 	dispatcher := sd.NewSimpleDispatcher(clk)
 
 	nodeCount := 4
-	ids := make([]key.KadKey, nodeCount)
-	ids[0] = key.KadKey(zeroBytes(keysize))
-	ids[1] = key.KadKey(append(zeroBytes(keysize-1), 0x01))
-	ids[2] = key.KadKey(append(zeroBytes(keysize-1), 0x02))
-	ids[3] = key.KadKey(append(zeroBytes(keysize-1), 0x03))
+	ids := make([]kadid.KadID, nodeCount)
+	ids[0] = kadid.KadID{KadKey: key.KadKey(zeroBytes(keysize))}
+	ids[1] = kadid.KadID{KadKey: key.KadKey(append(zeroBytes(keysize-1), 0x01))}
+	ids[2] = kadid.KadID{KadKey: key.KadKey(append(zeroBytes(keysize-1), 0x02))}
+	ids[3] = kadid.KadID{KadKey: key.KadKey(append(zeroBytes(keysize-1), 0x03))}
 
 	//     ^
 	//    / \
@@ -58,7 +59,7 @@ func findNode(ctx context.Context) {
 	servers := make([]*kadsimserver.KadSimServer, len(ids))
 
 	for i := 0; i < len(ids); i++ {
-		rts[i] = simplert.NewSimpleRT(ids[i], 2)
+		rts[i] = simplert.NewSimpleRT(ids[i].KadKey, 2)
 		eps[i] = fakeendpoint.NewFakeEndpoint(ids[i], dispatcher)
 		schedulers[i] = ss.NewSimpleScheduler(ctx, clk)
 		servers[i] = kadsimserver.NewKadSimServer(rts[i], eps[i])
@@ -93,14 +94,14 @@ func findNode(ctx context.Context) {
 		fmt.Println("got response")
 		for _, peer := range resp.CloserNodes() {
 			fmt.Println(peer)
-			if peer == ids[3] {
+			if peer.NodeID().String() == ids[3].NodeID().String() {
 				fmt.Println("success", peer)
 			}
 		}
 		return nil
 	}
 
-	sq.NewSimpleQuery(ctx, ids[3], req, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
+	sq.NewSimpleQuery(ctx, ids[3].Key(), req, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
 
 	dispatcher.DispatchLoop(ctx)
 

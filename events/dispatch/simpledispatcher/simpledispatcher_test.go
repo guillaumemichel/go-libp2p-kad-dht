@@ -10,22 +10,18 @@ import (
 	ta "github.com/libp2p/go-libp2p-kad-dht/events/action/testaction"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	sid "github.com/libp2p/go-libp2p-kad-dht/network/address/stringid"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
 	"github.com/stretchr/testify/require"
 )
-
-type id string
-
-func (i id) String() string {
-	return string(i)
-}
 
 func TestSimpleDispatcher(t *testing.T) {
 	ctx := context.Background()
 	clk := clock.NewMock()
 
 	// creating 5 nodes, with their schedulers
-	ids := []address.NodeID{id("a"), id("b"), id("c"), id("d"), id("e")}
+	ids := []address.NodeID{sid.StringID("a"), sid.StringID("b"),
+		sid.StringID("c"), sid.StringID("d"), sid.StringID("e")}
 	scheds := make(map[address.NodeID]*ss.SimpleScheduler)
 	servers := make(map[address.NodeID]simserver.SimServer)
 	for _, id := range ids {
@@ -61,7 +57,7 @@ func TestSimpleDispatcher(t *testing.T) {
 
 	// invalid latency set
 	d.SetLatency(ids[0], ids[0], 10*time.Millisecond)
-	d.SetLatency(ids[1], id("z"), 10*time.Millisecond)
+	d.SetLatency(ids[1], sid.StringID("z"), 10*time.Millisecond)
 
 	// check latencies between nodes are correct
 	require.Equal(t, time.Duration(0), d.GetLatency(ids[0], ids[0]))
@@ -71,7 +67,7 @@ func TestSimpleDispatcher(t *testing.T) {
 	require.Equal(t, time.Duration(latencies[3][3]*int(time.Millisecond)), d.GetLatency(ids[3], ids[4]))
 
 	// invalid latency (unknown peer)
-	require.Equal(t, time.Duration(0), d.GetLatency(ids[0], id("z")))
+	require.Equal(t, time.Duration(0), d.GetLatency(ids[0], sid.StringID("z")))
 
 	// remove peer
 	d.RemovePeer(ids[1])
@@ -144,7 +140,8 @@ func TestDispatchLoop(t *testing.T) {
 	clk := clock.NewMock()
 
 	// creating 6 nodes, with their schedulers (note that "f" is never used)
-	ids := []address.NodeID{id("a"), id("b"), id("c"), id("d"), id("e"), id("f")}
+	ids := []address.NodeID{sid.StringID("a"), sid.StringID("b"),
+		sid.StringID("c"), sid.StringID("d"), sid.StringID("e"), sid.StringID("f")}
 	scheds := make(map[address.NodeID]*ss.SimpleScheduler)
 	for _, id := range ids {
 		scheds[id] = ss.NewSimpleScheduler(ctx, clk)

@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	fmt "fmt"
 
-	"github.com/libp2p/go-libp2p-kad-dht/test/util"
+	"github.com/libp2p/go-libp2p-kad-dht/examples/util"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"

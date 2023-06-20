@@ -12,7 +12,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	tutil "github.com/libp2p/go-libp2p-kad-dht/examples/util"
-	"github.com/libp2p/go-libp2p-kad-dht/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
@@ -37,22 +37,24 @@ func FindPeer(ctx context.Context) {
 		panic(err)
 	}
 
-	peerid := h.ID()
-	kadid := key.PeerKadID(peerid)
+	pid := peerid.PeerID{ID: h.ID()}
+	kadid := pid.Key()
 
 	rt := simplert.NewSimpleRT(kadid, 20)
 	msgEndpoint := libp2pendpoint.NewMessageEndpoint(h, protocolID)
 
-	friendid, err := peer.Decode("12D3KooWGjgvfDkpuVAoNhd7PRRvMTEG4ZgzHBFURqDe1mqEzAMS")
+	friend, err := peer.Decode("12D3KooWGjgvfDkpuVAoNhd7PRRvMTEG4ZgzHBFURqDe1mqEzAMS")
 	if err != nil {
 		panic(err)
 	}
+	friendID := peerid.PeerID{ID: friend}
+
 	a, err := multiaddr.NewMultiaddr("/ip4/45.32.75.236/udp/4001/quic")
 	if err != nil {
 		panic(err)
 	}
-	friend := peer.AddrInfo{ID: friendid, Addrs: []multiaddr.Multiaddr{a}}
-	if err := h.Connect(ctx, friend); err != nil {
+	friendAddr := peer.AddrInfo{ID: friend, Addrs: []multiaddr.Multiaddr{a}}
+	if err := h.Connect(ctx, friendAddr); err != nil {
 		panic(err)
 	}
 	fmt.Println("connected to friend")
@@ -61,9 +63,11 @@ func FindPeer(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+	targetID := peerid.PeerID{ID: target}
 
-	req := ipfskadv1.FindPeerRequest(target)
-	if !rt.AddPeer(ctx, friendid) {
+	req := ipfskadv1.FindPeerRequest(targetID)
+	success, err := rt.AddPeer(ctx, friendID)
+	if err != nil || !success {
 		panic("failed to add friend to rt")
 	}
 	//req.ClusterLevelRaw = int32(1)
@@ -91,7 +95,7 @@ func FindPeer(ctx context.Context) {
 		return nil
 	}
 
-	simplequery.NewSimpleQuery(ctx, key.PeerKadID(target), req, 1, 5*time.Second, msgEndpoint, rt, sched, handleResultsFn)
+	simplequery.NewSimpleQuery(ctx, targetID.Key(), req, 1, 5*time.Second, msgEndpoint, rt, sched, handleResultsFn)
 
 	for i := 0; i < 1000 && !endCond; i++ {
 		for sched.RunOne(ctx) {

@@ -1,39 +1,14 @@
 package key
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"math"
-
-	"github.com/libp2p/go-libp2p/core/peer"
-	mh "github.com/multiformats/go-multihash"
-	mhreg "github.com/multiformats/go-multihash/core"
 )
 
-const (
-	// HasherID is the identifier hash function used to derive the second hash identifiers
-	// associated with a CID or multihash
-	HasherID = mh.SHA2_256
+type KadKey []byte
 
-	// Keysize is the length in bytes of the hash function's digest, which is equivalent to the keysize in the Kademlia keyspace
-	Keysize = sha256.Size
-)
-
-type KadKey [Keysize]byte
-
-var (
-	ZeroKey = KadKey{}
-)
-
-func PeerKadID(p peer.ID) KadKey {
-	return StringKadID(string(p))
-}
-
-func StringKadID(s string) KadKey {
-	// hasher is the hash function used to derive the second hash identifiers
-	hasher, _ := mhreg.GetHasher(HasherID)
-	hasher.Write([]byte(s))
-	return KadKey(hasher.Sum(nil))
+func (k KadKey) Size() int {
+	return len(k)
 }
 
 func (k KadKey) Hex() string {
@@ -44,35 +19,46 @@ func (k KadKey) String() string {
 	return k.Hex()
 }
 
-func Xor(a, b KadKey) KadKey {
-	var xored KadKey
-	for i := 0; i < Keysize; i++ {
+func (a KadKey) Xor(b KadKey) (KadKey, error) {
+	if a.Size() != b.Size() {
+		return nil, ErrInvalidKey(a.Size())
+	}
+
+	xored := make([]byte, a.Size())
+	for i := 0; i < a.Size(); i++ {
 		xored[i] = a[i] ^ b[i]
 	}
-	return xored
+	return xored, nil
 }
 
-func CommonPrefixLength(a, b KadKey) int {
+func (a KadKey) CommonPrefixLength(b KadKey) (int, error) {
+	if a.Size() != b.Size() {
+		return 0, ErrInvalidKey(a.Size())
+	}
+
 	var xored byte
-	for i := 0; i < Keysize; i++ {
+	for i := 0; i < a.Size(); i++ {
 		xored = a[i] ^ b[i]
 		if xored != 0 {
-			return i*8 + 7 - int(math.Log2(float64(xored)))
+			return i*8 + 7 - int(math.Log2(float64(xored))), nil
 		}
 	}
-	return 8 * Keysize
-
+	return 8 * a.Size(), nil
 }
 
 // Compare returns -1 if a < b, 0 if a == b, and 1 if a > b
-func Compare(a, b KadKey) int {
-	for i := 0; i < Keysize; i++ {
+func (a KadKey) Compare(b KadKey) (int8, error) {
+	if a.Size() != b.Size() {
+		return 0, ErrInvalidKey(a.Size())
+	}
+
+	for i := 0; i < a.Size(); i++ {
 		if a[i] < b[i] {
-			return -1
+			return -1, nil
 		}
 		if a[i] > b[i] {
-			return 1
+			return 1, nil
 		}
 	}
-	return 0
+	return 0, nil
 }

@@ -71,7 +71,11 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 		trace.WithAttributes(attribute.String("Target", kadid.Hex())))
 	defer span.End()
 
-	closestPeers := rt.NearestPeers(ctx, kadid, NClosestPeers)
+	closestPeers, err := rt.NearestPeers(ctx, kadid, NClosestPeers)
+	if err != nil {
+		span.RecordError(err)
+		return nil
+	}
 
 	pl := newPeerList(kadid)
 	pl.addToPeerlist(closestPeers)
@@ -154,11 +158,11 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	}
 
 	// add timeout to scheduler
-	timeoutAction := ba.BasicAction(func(ctx context.Context) {
-		q.requestError(ctx, id, errors.New("request timeout ("+q.timeout.String()+")"))
-	})
-
-	scheduler.ScheduleActionIn(ctx, q.sched, q.timeout, timeoutAction)
+	timeoutAction := scheduler.ScheduleActionIn(ctx, q.sched, q.timeout,
+		ba.BasicAction(func(ctx context.Context) {
+			q.requestError(ctx, id,
+				errors.New("request timeout ("+q.timeout.String()+")"))
+		}))
 
 	// function to be executed when a response is received
 	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage, err error) {
@@ -210,8 +214,9 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 	newPeerIds := make([]address.NodeID, 0, len(closerPeers))
 
 	for _, na := range closerPeers {
-		id := address.ID(na)
-		if key.Compare(address.KadID(id), q.rt.Self()) == 0 {
+		id := na.NodeID()
+		c, err := id.Key().Compare(q.rt.Self())
+		if err == nil && c == 0 {
 			// don't add self to queries or routing table
 			span.AddEvent("remote peer provided self as closer peer")
 			continue
@@ -261,7 +266,7 @@ func (q *SimpleQuery) requestError(ctx context.Context, id address.NodeID, err e
 
 	if q.ctx.Err() == nil {
 		// remove peer from routing table unless context was cancelled
-		q.rt.RemovePeer(ctx, address.KadID(id))
+		q.rt.RemoveKey(ctx, id.Key())
 	}
 
 	if err := q.checkIfDone(); err != nil {

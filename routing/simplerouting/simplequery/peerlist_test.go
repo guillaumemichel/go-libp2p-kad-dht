@@ -3,15 +3,16 @@ package simplequery
 import (
 	"testing"
 
-	"github.com/libp2p/go-libp2p-kad-dht/key"
+	"github.com/libp2p/go-libp2p-kad-dht/key/sha256key256"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAddPeers(t *testing.T) {
 	// create empty peer list
-	pl := newPeerList(key.ZeroKey)
+	pl := newPeerList(sha256key256.ZeroKey())
 
 	require.Nil(t, pl.closest)
 	require.Nil(t, pl.closestQueued)
@@ -20,9 +21,9 @@ func TestAddPeers(t *testing.T) {
 	nPeers := 3
 	peerids := make([]address.NodeID, nPeers+1)
 	for i := 0; i < nPeers; i++ {
-		peerids[i] = peer.ID(byte(i))
+		peerids[i] = peerid.PeerID{ID: peer.ID(byte(i))}
 	}
-	peerids[nPeers] = peer.ID(byte(0)) // duplicate with peerids[0]
+	peerids[nPeers] = peerid.PeerID{ID: peer.ID(byte(0))} // duplicate with peerids[0]
 
 	// distances
 	// peerids[0]: 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
@@ -55,10 +56,10 @@ func TestAddPeers(t *testing.T) {
 	nPeers = 5
 	newPeerids := make([]address.NodeID, nPeers+2)
 	for i := 0; i < nPeers; i++ {
-		newPeerids[i] = peer.ID(byte(10 + i))
+		newPeerids[i] = peerid.PeerID{ID: peer.ID(byte(10 + i))}
 	}
-	newPeerids[nPeers] = peer.ID(byte(10))  // duplicate with newPeerids[0]
-	newPeerids[nPeers+1] = peer.ID(byte(1)) // duplicate with peerids[1]
+	newPeerids[nPeers] = peerid.PeerID{ID: peer.ID(byte(10))}  // duplicate with newPeerids[0]
+	newPeerids[nPeers+1] = peerid.PeerID{ID: peer.ID(byte(1))} // duplicate with peerids[1]
 
 	// distances
 	// newPeerids[0]: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
@@ -89,7 +90,7 @@ func TestAddPeers(t *testing.T) {
 	require.Equal(t, newPeerids[0], pl.closestQueued.id)
 
 	// add a single peer that isn't the closest one
-	newPeer := peer.ID(byte(20))
+	newPeer := peerid.PeerID{ID: peer.ID(byte(20))}
 
 	pl.addToPeerlist([]address.NodeID{newPeer})
 	order = append(order[:5], order[4:]...)
@@ -108,38 +109,38 @@ func TestPeerlistCornerCases(t *testing.T) {
 	// different empty peerid lists
 	emptyPeeridLists := [][]address.NodeID{
 		{},
-		{peer.ID("")},
+		{peerid.PeerID{ID: peer.ID("")}},
 		make([]address.NodeID, 3),
 	}
 
 	for _, peerids := range emptyPeeridLists {
 		// adding them to a peerlist should result in an empty list
-		require.Nil(t, sliceToPeerInfos(key.ZeroKey, peerids))
+		require.Nil(t, sliceToPeerInfos(sha256key256.ZeroKey(), peerids))
 
-		pl := newPeerList(key.ZeroKey)
+		pl := newPeerList(sha256key256.ZeroKey())
 		pl.addToPeerlist(peerids)
 		require.Nil(t, pl.closest)
 		require.Nil(t, pl.closestQueued)
 		require.Equal(t, 0, pl.queuedCount)
 	}
 
-	pl := newPeerList(key.ZeroKey)
+	pl := newPeerList(sha256key256.ZeroKey())
 
-	singlePeerList0 := []address.NodeID{peer.ID(byte(0))}
+	singlePeerList0 := []address.NodeID{peerid.PeerID{ID: peer.ID(byte(0))}}
 	// 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
 	pl.addToPeerlist(singlePeerList0)
 	require.Equal(t, singlePeerList0[0], pl.closest.id)
 	require.Equal(t, singlePeerList0[0], pl.closestQueued.id)
 	require.Equal(t, 1, pl.queuedCount)
 
-	singlePeerList1 := []address.NodeID{peer.ID(byte(1))}
+	singlePeerList1 := []address.NodeID{peerid.PeerID{ID: peer.ID(byte(1))}}
 	// 4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
 	pl.addToPeerlist(singlePeerList1)
 	require.Equal(t, singlePeerList1[0], pl.closest.id)
 	require.Equal(t, singlePeerList1[0], pl.closest.id)
 	require.Equal(t, 2, pl.queuedCount)
 
-	singlePeerList2 := []address.NodeID{peer.ID(byte(2))}
+	singlePeerList2 := []address.NodeID{peerid.PeerID{ID: peer.ID(byte(2))}}
 	// dbc1b4c900ffe48d575b5da5c638040125f65db0fe3e24494b76ea986457d986
 	pl.addToPeerlist(singlePeerList2)
 	require.Equal(t, 3, pl.queuedCount)
@@ -156,13 +157,13 @@ func TestPeerlistCornerCases(t *testing.T) {
 
 func TestUpdatePeerStatusInPeerlist(t *testing.T) {
 	// create empty peer list
-	pl := newPeerList(key.ZeroKey)
+	pl := newPeerList(sha256key256.ZeroKey())
 
 	// add initial peers
 	nPeers := 3
 	peerids := make([]address.NodeID, nPeers)
 	for i := 0; i < nPeers; i++ {
-		peerids[i] = peer.ID(byte(i))
+		peerids[i] = peerid.PeerID{ID: peer.ID(byte(i))}
 	}
 
 	pl.addToPeerlist(peerids)
@@ -191,13 +192,13 @@ func TestUpdatePeerStatusInPeerlist(t *testing.T) {
 
 func TestPopClosestQueued(t *testing.T) {
 	// create empty peer list
-	pl := newPeerList(key.ZeroKey)
+	pl := newPeerList(sha256key256.ZeroKey())
 
 	// add initial peers
 	nPeers := 3
 	peerids := make([]address.NodeID, nPeers)
 	for i := 0; i < nPeers; i++ {
-		peerids[i] = peer.ID(byte(i))
+		peerids[i] = peerid.PeerID{ID: peer.ID(byte(i))}
 	}
 
 	pl.addToPeerlist(peerids)
@@ -221,7 +222,7 @@ func TestPopClosestQueued(t *testing.T) {
 	require.Equal(t, nil, pl.popClosestQueued())
 	require.Equal(t, 0, pl.queuedCount)
 
-	pl = newPeerList(key.ZeroKey)
+	pl = newPeerList(sha256key256.ZeroKey())
 
 	pl.addToPeerlist(peerids)
 	require.Equal(t, 3, pl.queuedCount)

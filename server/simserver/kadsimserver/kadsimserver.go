@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/kadid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
@@ -44,19 +44,23 @@ func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.
 	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, peerstoreTTL)
 
 	_, span := util.StartSpan(ctx, "SimServer.HandleFindNodeRequest", trace.WithAttributes(
-		attribute.Stringer("Requester", address.ID(rpeer)),
+		attribute.Stringer("Requester", rpeer.NodeID()),
 		attribute.Stringer("Target", req.Target())))
 	defer span.End()
 
-	peers := s.rt.NearestPeers(ctx, req.Target(), nClosestPeers)
+	peers, err := s.rt.NearestPeers(ctx, req.Target(), nClosestPeers)
+	if err != nil {
+		span.RecordError(err)
+		return
+	}
 
 	span.AddEvent("Nearest peers", trace.WithAttributes(
 		attribute.Int("count", len(peers)),
 	))
 
-	kadPeers := make([]key.KadKey, len(peers))
+	kadPeers := make([]kadid.KadID, len(peers))
 	for i, p := range peers {
-		kadPeers[i] = p.(key.KadKey)
+		kadPeers[i] = p.(kadid.KadID)
 	}
 	resp := simmessage.NewSimResponse(kadPeers)
 

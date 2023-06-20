@@ -3,8 +3,7 @@ package simplerouting
 import (
 	"context"
 
-	"github.com/libp2p/go-libp2p-kad-dht/key"
-	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	lendpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
@@ -32,15 +31,17 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 		return peer.AddrInfo{}, err
 	}
 
+	pid := peerid.PeerID{ID: p}
+
 	// Check if were already connected to them
-	targetConnectedness := r.msgEndpoint.Connectedness(p)
+	targetConnectedness := r.msgEndpoint.Connectedness(pid)
 	if targetConnectedness == libp2pnet.Connected {
 		span.AddEvent("Already connected")
-		return lendpoint.PeerInfo(r.msgEndpoint, p)
+		return lendpoint.PeerInfo(r.msgEndpoint, pid)
 	}
 
-	kadid := key.PeerKadID(p)
-	req := ipfskadv1.FindPeerRequest(p)
+	kadid := pid.Key()
+	req := ipfskadv1.FindPeerRequest(pid)
 
 	resultsChan := make(chan any) // peer.AddrInfo
 	handleResultsFn := getFindPeerHandleResultsFn(p, resultsChan)
@@ -57,7 +58,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	dialRunning := false
 	newDialRequired := false
 	dialChan := make(chan bool)
-	ai, err := lendpoint.PeerInfo(r.msgEndpoint, p)
+	ai, err := lendpoint.PeerInfo(r.msgEndpoint, pid)
 	if err != nil {
 		return peer.AddrInfo{}, err
 	}
@@ -76,7 +77,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 		span.AddEvent("Already in peerstore: can connect")
 		dialRunning = true
 		// spawns a new goroutine to dial the peer and report the result
-		r.msgEndpoint.AsyncDialAndReport(ctx, p, dialReportFn)
+		r.msgEndpoint.AsyncDialAndReport(ctx, pid, dialReportFn)
 	}
 
 	select {
@@ -101,24 +102,24 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 				} else {
 					dialRunning = true
 					// spawns a new goroutine to dial the peer and report the result
-					r.msgEndpoint.AsyncDialAndReport(ctx, p, dialReportFn)
+					r.msgEndpoint.AsyncDialAndReport(ctx, pid, dialReportFn)
 				}
 			}
 		}
 	case success := <-dialChan:
 		if success {
 			// if we could dial the peer, return its address info
-			return lendpoint.PeerInfo(r.msgEndpoint, p)
+			return lendpoint.PeerInfo(r.msgEndpoint, pid)
 		}
 		if newDialRequired {
 			newDialRequired = false
 			// spawns a new goroutine to dial the peer and report the result
-			r.msgEndpoint.AsyncDialAndReport(ctx, p, dialReportFn)
+			r.msgEndpoint.AsyncDialAndReport(ctx, pid, dialReportFn)
 		} else {
 			dialRunning = false
 		}
 	}
-	return lendpoint.PeerInfo(r.msgEndpoint, p)
+	return lendpoint.PeerInfo(r.msgEndpoint, pid)
 }
 
 // containsNewAddresses returns true if newAddrs contains addresses that are not
@@ -151,11 +152,11 @@ func getFindPeerHandleResultsFn(p peer.ID, resultsChan chan any) sq.HandleResult
 		defer span.End()
 
 		for _, na := range m.CloserNodes() {
-			if address.ID(na).String() == p.String() {
+			if na.NodeID().String() == p.String() {
 				// we found the peer we were looking for
 
 				// convert NodeID to PeerID as we need to return a PeerID to the caller
-				peerid := address.ID(na).(peer.ID)
+				peerid := na.NodeID().(peerid.PeerID)
 				span.AddEvent("Found peer", trace.WithAttributes(attribute.String("PeerID", peerid.String())))
 
 				select {

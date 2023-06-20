@@ -2,6 +2,7 @@ package libp2pendpoint
 
 import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/addrinfo"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -24,9 +25,9 @@ func PeerInfo(e endpoint.Endpoint, p address.NodeID) (peer.AddrInfo, error) {
 	if err != nil {
 		return peer.AddrInfo{}, err
 	}
-	ai, ok := netAddr.(peer.AddrInfo)
+	ai, ok := netAddr.(addrinfo.AddrInfo)
 	if !ok {
 		return peer.AddrInfo{}, ErrNotPeerAddrInfo
 	}
-	return ai, nil
+	return ai.AddrInfo, nil
 }

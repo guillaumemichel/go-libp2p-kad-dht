@@ -1,19 +1,13 @@
 package key
 
 import (
-	"crypto/rand"
 	"strings"
 	"testing"
 
-	"github.com/libp2p/go-libp2p/core/peer"
-	mhreg "github.com/multiformats/go-multihash/core"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	keysize = 32
-)
+var keysize = 4
 
 func zeroBytes(n int) []byte {
 	bytes := make([]byte, n)
@@ -21,25 +15,6 @@ func zeroBytes(n int) []byte {
 		bytes[i] = 0
 	}
 	return bytes
-}
-
-func randomBytes(n int) []byte {
-	blk := make([]byte, n)
-	rand.Read(blk)
-	return blk
-}
-
-func TestPeerKadID(t *testing.T) {
-	peerid := peer.ID("12D3KooWFHYCmTCexEziKBVFEVT4FAVPBUYJKEBUrdgu9RYoVE1T")
-	kadid := PeerKadID(peerid)
-
-	// get sha256 hasher
-	hasher, err := mhreg.GetHasher(HasherID)
-	assert.NoError(t, err)
-	hasher.Write([]byte(peerid))
-	expectedKadid := hasher.Sum(nil)
-
-	assert.Equal(t, kadid[:], expectedKadid)
 }
 
 func TestKadKeyString(t *testing.T) {
@@ -63,13 +38,22 @@ func TestKadKeyString(t *testing.T) {
 }
 
 func TestXor(t *testing.T) {
-	key0 := KadKey(zeroBytes(keysize))      // 00000...000
-	randKey := KadKey(randomBytes(keysize)) // random key
+	key0 := KadKey(zeroBytes(keysize))                // 00000...000
+	randKey := KadKey([]byte{0x23, 0xe4, 0xdd, 0x03}) // arbitrary key
 
-	require.Equal(t, key0, Xor(key0, key0))
-	require.Equal(t, randKey, Xor(randKey, key0))
-	require.Equal(t, randKey, Xor(key0, randKey))
-	require.Equal(t, key0, Xor(randKey, randKey))
+	xored, err := key0.Xor(key0)
+	require.NoError(t, err)
+	require.Equal(t, key0, xored)
+	xored, _ = randKey.Xor(key0)
+	require.Equal(t, randKey, xored)
+	xored, _ = key0.Xor(randKey)
+	require.Equal(t, randKey, xored)
+	xored, _ = randKey.Xor(randKey)
+	require.Equal(t, key0, xored)
+
+	invalidKey := KadKey([]byte{0x23, 0xe4, 0xdd}) // invalid key
+	_, err = key0.Xor(invalidKey)
+	require.Equal(t, ErrInvalidKey(4), err)
 }
 
 func TestCommonPrefixLength(t *testing.T) {
@@ -78,10 +62,19 @@ func TestCommonPrefixLength(t *testing.T) {
 	key2 := KadKey(append([]byte{0x80}, zeroBytes(keysize-1)...)) // 10000...000
 	key3 := KadKey(append([]byte{0x40}, zeroBytes(keysize-1)...)) // 01000...000
 
-	require.Equal(t, keysize*8, CommonPrefixLength(key0, key0))
-	require.Equal(t, keysize*8-1, CommonPrefixLength(key0, key1))
-	require.Equal(t, 0, CommonPrefixLength(key0, key2))
-	require.Equal(t, 1, CommonPrefixLength(key0, key3))
+	cpl, err := key0.CommonPrefixLength(key0)
+	require.NoError(t, err)
+	require.Equal(t, keysize*8, cpl)
+	cpl, _ = key0.CommonPrefixLength(key1)
+	require.Equal(t, keysize*8-1, cpl)
+	cpl, _ = key0.CommonPrefixLength(key2)
+	require.Equal(t, 0, cpl)
+	cpl, _ = key0.CommonPrefixLength(key3)
+	require.Equal(t, 1, cpl)
+
+	invalidKey := KadKey([]byte{0x23, 0xe4, 0xdd}) // invalid key
+	_, err = key0.CommonPrefixLength(invalidKey)
+	require.Equal(t, ErrInvalidKey(4), err)
 }
 
 func TestCompare(t *testing.T) {
@@ -96,13 +89,18 @@ func TestCompare(t *testing.T) {
 
 	for i := 0; i < nKeys; i++ {
 		for j := 0; j < nKeys; j++ {
+			res, _ := keys[i].Compare(keys[j])
 			if i < j {
-				require.Equal(t, -1, Compare(keys[i], keys[j]))
+				require.Equal(t, int8(-1), res)
 			} else if i > j {
-				require.Equal(t, 1, Compare(keys[i], keys[j]))
+				require.Equal(t, int8(1), res)
 			} else {
-				require.Equal(t, 0, Compare(keys[i], keys[j]))
+				require.Equal(t, int8(0), res)
 			}
 		}
 	}
+
+	invalidKey := KadKey([]byte{0x23, 0xe4, 0xdd}) // invalid key
+	_, err := keys[0].Compare(invalidKey)
+	require.Equal(t, ErrInvalidKey(4), err)
 }

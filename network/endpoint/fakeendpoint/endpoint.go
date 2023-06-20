@@ -8,6 +8,7 @@ import (
 	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
@@ -15,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/libp2p/go-libp2p/core/network"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type FakeEndpoint struct {
@@ -69,17 +69,18 @@ func (e *FakeEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
 // MaybeAddToPeerstore adds the given address to the peerstore. FakeEndpoint
 // doesn't take into account the ttl.
 func (e *FakeEndpoint) MaybeAddToPeerstore(ctx context.Context, na address.NetworkAddress, ttl time.Duration) error {
+	strNodeID := na.NodeID().String()
 	_, span := util.StartSpan(ctx, "MaybeAddToPeerstore",
 		trace.WithAttributes(attribute.String("self", e.self.String())),
-		trace.WithAttributes(attribute.String("id", address.ID(na).String())),
+		trace.WithAttributes(attribute.String("id", strNodeID)),
 	)
 	defer span.End()
 
-	if _, ok := e.peerstore[address.ID(na).String()]; !ok {
-		e.peerstore[address.ID(na).String()] = na
+	if _, ok := e.peerstore[strNodeID]; !ok {
+		e.peerstore[strNodeID] = na
 	}
-	if _, ok := e.connStatus[address.ID(na).String()]; !ok {
-		e.connStatus[address.ID(na).String()] = network.CanConnect
+	if _, ok := e.connStatus[strNodeID]; !ok {
+		e.connStatus[strNodeID] = network.CanConnect
 	}
 	return nil
 }
@@ -123,9 +124,9 @@ func (e *FakeEndpoint) NetworkAddress(id address.NodeID) (address.NetworkAddress
 	if ai, ok := e.peerstore[id.String()]; ok {
 		return ai, nil
 	}
-	return peer.AddrInfo{}, endpoint.ErrUnknownPeer
+	return peerid.PeerID{}, endpoint.ErrUnknownPeer
 }
 
-func (e *FakeEndpoint) KadID() key.KadKey {
-	return address.KadID(e.self)
+func (e *FakeEndpoint) KadKey() key.KadKey {
+	return e.self.Key()
 }

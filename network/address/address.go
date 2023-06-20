@@ -1,40 +1,17 @@
 package address
 
-import (
-	"github.com/libp2p/go-libp2p-kad-dht/key"
-	"github.com/libp2p/go-libp2p/core/peer"
-)
+import "github.com/libp2p/go-libp2p-kad-dht/key"
 
 type NetworkAddress interface {
-}
-
-func ID(na NetworkAddress) NodeID {
-	switch na := na.(type) {
-	case peer.AddrInfo:
-		return na.ID
-	case peer.ID:
-		return na
-	case key.KadKey:
-		return na
-	}
-	return StringID{}
+	NodeID() NodeID
 }
 
 type NodeID interface {
+	NodeID() NodeID
+	Key() key.KadKey
+	// String returns the string representation of the NodeID. String
+	// representation should be unique for each NodeID.
 	String() string
-}
-
-func KadID(id NodeID) key.KadKey {
-	switch id := id.(type) {
-	case key.KadKey:
-		return id
-	case peer.ID:
-		return key.PeerKadID(id)
-	}
-	if id == nil {
-		key.StringKadID("")
-	}
-	return key.StringKadID(id.String())
 }
 
 type ProtocolID string

@@ -9,23 +9,11 @@ import (
 
 type RoutingTable interface {
 	Self() key.KadKey
-	AddPeer(context.Context, address.NodeID) bool
-	RemovePeer(context.Context, key.KadKey) bool
-	NearestPeers(context.Context, key.KadKey, int) []address.NodeID
+	AddPeer(context.Context, address.NodeID) (bool, error)
+	RemoveKey(context.Context, key.KadKey) (bool, error)
+	NearestPeers(context.Context, key.KadKey, int) ([]address.NodeID, error)
 }
 
-func AddPeer(ctx context.Context, rt RoutingTable, p address.NodeID) bool {
-	return rt.AddPeer(ctx, p)
-}
-
-func RemovePeer(ctx context.Context, rt RoutingTable, k key.KadKey) bool {
-	return rt.RemovePeer(ctx, k)
-}
-
-func RemovePeerID(ctx context.Context, rt RoutingTable, p address.NodeID) bool {
-	return RemovePeer(ctx, rt, address.KadID(p))
-}
-
-func NearestPeers(ctx context.Context, rt RoutingTable, k key.KadKey, n int) []address.NodeID {
-	return rt.NearestPeers(ctx, k, n)
+func RemovePeer(ctx context.Context, rt RoutingTable, k address.NodeID) (bool, error) {
+	return rt.RemoveKey(ctx, k.Key())
 }

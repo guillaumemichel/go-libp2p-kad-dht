@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
+	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 )
 
 // Scheduler is an interface for scheduling actions to run as soon as possible
@@ -16,10 +17,10 @@ type Scheduler interface {
 	// EnqueueAction enqueues an action to run as soon as possible
 	EnqueueAction(context.Context, action.Action)
 	// ScheduleAction schedules an action to run at a specific time
-	ScheduleAction(context.Context, time.Time, action.Action)
+	ScheduleAction(context.Context, time.Time, action.Action) planner.PlannedAction
 	// RemovePlannedAction removes an action from the scheduler planned actions
 	// (not from the queue), does nothing if the action is not in the planner
-	RemovePlannedAction(context.Context, action.Action)
+	RemovePlannedAction(context.Context, planner.PlannedAction)
 
 	// RunOne runs one action from the scheduler's queue, returning true if an
 	// action was run, false if the queue was empty
@@ -27,11 +28,12 @@ type Scheduler interface {
 }
 
 // ScheduleActionIn schedules an action to run after a delay
-func ScheduleActionIn(ctx context.Context, s Scheduler, d time.Duration, a action.Action) {
+func ScheduleActionIn(ctx context.Context, s Scheduler, d time.Duration, a action.Action) planner.PlannedAction {
 	if d <= 0 {
 		s.EnqueueAction(ctx, a)
+		return nil
 	} else {
-		s.ScheduleAction(ctx, s.Now().Add(d), a)
+		return s.ScheduleAction(ctx, s.Now().Add(d), a)
 	}
 }
 

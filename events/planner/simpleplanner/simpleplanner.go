@@ -13,13 +13,21 @@ import (
 type SimplePlanner struct {
 	Clock clock.Clock
 
-	NextAction *simpleTimedAction
+	NextAction *SimpleTimedAction
 }
 
-type simpleTimedAction struct {
+type SimpleTimedAction struct {
 	action action.Action
 	time   time.Time
-	next   *simpleTimedAction
+	next   *SimpleTimedAction
+}
+
+func (a *SimpleTimedAction) Time() time.Time {
+	return a.time
+}
+
+func (a *SimpleTimedAction) Action() action.Action {
+	return a.action
 }
 
 func NewSimplePlanner(clk clock.Clock) *SimplePlanner {
@@ -30,24 +38,24 @@ func NewSimplePlanner(clk clock.Clock) *SimplePlanner {
 
 func (p *SimplePlanner) ScheduleAction(ctx context.Context, t time.Time, a action.Action) planner.PlannedAction {
 	if p.NextAction == nil {
-		p.NextAction = &simpleTimedAction{action: a, time: t}
+		p.NextAction = &SimpleTimedAction{action: a, time: t}
 		return p.NextAction
 	}
 
 	curr := p.NextAction
 	if t.Before(curr.time) {
-		p.NextAction = &simpleTimedAction{action: a, time: t, next: curr}
+		p.NextAction = &SimpleTimedAction{action: a, time: t, next: curr}
 		return p.NextAction
 	}
 	for curr.next != nil && t.After(curr.next.time) {
 		curr = curr.next
 	}
-	curr.next = &simpleTimedAction{action: a, time: t, next: curr.next}
+	curr.next = &SimpleTimedAction{action: a, time: t, next: curr.next}
 	return curr.next
 }
 
 func (p *SimplePlanner) RemoveAction(ctx context.Context, pa planner.PlannedAction) {
-	a, ok := pa.(*simpleTimedAction)
+	a, ok := pa.(*SimpleTimedAction)
 	if !ok {
 		return
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -43,88 +44,140 @@ func TestBucketSize(t *testing.T) {
 func TestAddPeer(t *testing.T) {
 	ctx := context.Background()
 
-	p := peer.ID("")
+	p := peerid.PeerID{ID: peer.ID("")}
 
 	rt := NewSimpleRT(key0, 2)
 
 	require.Equal(t, 0, rt.SizeOfBucket(0))
 
 	// add peer CPL=1, bucket=0
-	require.True(t, rt.addPeer(ctx, key1, p))
+	success, err := rt.addPeer(ctx, key1, p)
+	require.NoError(t, err)
+	require.True(t, success)
 	require.Equal(t, 1, rt.SizeOfBucket(0))
 
 	// cannot add the same peer twice
-	require.False(t, rt.addPeer(ctx, key1, p))
+	success, err = rt.addPeer(ctx, key1, p)
+	require.NoError(t, err)
+	require.False(t, success)
 	require.Equal(t, 1, rt.SizeOfBucket(0))
 
 	// add peer CPL=0, bucket=0
-	require.True(t, rt.addPeer(ctx, key2, p))
+	success, err = rt.addPeer(ctx, key2, p)
+	require.NoError(t, err)
+	require.True(t, success)
 	require.Equal(t, 2, rt.SizeOfBucket(0))
 
 	// add peer CPL=0, bucket=0. split of bucket0
 	// key1 goes to bucket1
-	require.True(t, rt.addPeer(ctx, key3, p))
+	success, err = rt.addPeer(ctx, key3, p)
+	require.NoError(t, err)
+	require.True(t, success)
 	require.Equal(t, 2, rt.SizeOfBucket(0))
 	require.Equal(t, 1, rt.SizeOfBucket(1))
 
 	// already 2 peers with CPL = 0, so this should fail
-	require.False(t, rt.addPeer(ctx, key4, p))
+	success, err = rt.addPeer(ctx, key4, p)
+	require.NoError(t, err)
+	require.False(t, success)
 	// add peer CPL=1, bucket=1
-	require.True(t, rt.addPeer(ctx, key5, p))
+	success, err = rt.addPeer(ctx, key5, p)
+	require.NoError(t, err)
+	require.True(t, success)
 	require.Equal(t, 2, rt.SizeOfBucket(1))
 
 	// already 2 peers with CPL = 1, so this should fail
 	// even if bucket 1 is the last bucket
-	require.False(t, rt.addPeer(ctx, key6, p))
+	success, err = rt.addPeer(ctx, key6, p)
+	require.NoError(t, err)
+	require.False(t, success)
 
 	// add two peers with CPL = 3, bucket=2
-	require.True(t, rt.addPeer(ctx, key7, p))
-	require.True(t, rt.addPeer(ctx, key8, p))
+	success, err = rt.addPeer(ctx, key7, p)
+	require.NoError(t, err)
+	require.True(t, success)
+	success, err = rt.addPeer(ctx, key8, p)
+	require.NoError(t, err)
+	require.True(t, success)
 	// cannot add a third peer with CPL = 3
-	require.False(t, rt.addPeer(ctx, key9, p))
+	success, err = rt.addPeer(ctx, key9, p)
+	require.NoError(t, err)
+	require.False(t, success)
 
 	// add two peers with CPL = 2, bucket=2
-	require.True(t, rt.addPeer(ctx, key10, p))
-	require.True(t, rt.addPeer(ctx, key11, p))
+	success, err = rt.addPeer(ctx, key10, p)
+	require.NoError(t, err)
+	require.True(t, success)
+	success, err = rt.addPeer(ctx, key11, p)
+	require.NoError(t, err)
+	require.True(t, success)
 
 	// remove all peers with CPL = 0
-	rt.RemovePeer(ctx, key3)
-	rt.RemovePeer(ctx, key4)
+	success, err = rt.RemoveKey(ctx, key2)
+	require.NoError(t, err)
+	require.True(t, success)
+	success, err = rt.RemoveKey(ctx, key3)
+	require.NoError(t, err)
+	require.True(t, success)
+
 	// a new peer with CPL = 0 can be added
-	require.True(t, rt.AddPeer(ctx, p))
+	// note: p belongs to bucket 0
+	success, err = rt.AddPeer(ctx, p)
+	require.NoError(t, err)
+	require.True(t, success)
 	// cannot add the same peer twice even tough
 	// the bucket is not full
-	require.False(t, rt.AddPeer(ctx, p))
+	success, err = rt.AddPeer(ctx, p)
+	require.NoError(t, err)
+	require.False(t, success)
 }
 
 func TestRemovePeer(t *testing.T) {
 	ctx := context.Background()
-	p := peer.ID("")
+	p := peerid.PeerID{ID: peer.ID("")}
 
 	rt := NewSimpleRT(key0, 2)
 	rt.addPeer(ctx, key1, p)
-	require.False(t, rt.RemovePeer(ctx, key2))
-	require.True(t, rt.RemovePeer(ctx, key1))
+	success, err := rt.RemoveKey(ctx, key2)
+	require.NoError(t, err)
+	require.False(t, success)
+	success, err = rt.RemoveKey(ctx, key1)
+	require.NoError(t, err)
+	require.True(t, success)
 }
 
 func TestFindPeer(t *testing.T) {
 	ctx := context.Background()
-	p := peer.ID("QmPeer")
+	p := peerid.PeerID{ID: peer.ID("QmPeer")}
 
 	rt := NewSimpleRT(key0, 2)
-	rt.addPeer(ctx, key1, p)
-	require.Equal(t, p, rt.Find(key1))
-	require.Nil(t, rt.Find(key2))
-	require.True(t, rt.RemovePeer(ctx, key1))
-	require.Nil(t, rt.Find(key1))
+	success, err := rt.addPeer(ctx, key1, p)
+	require.NoError(t, err)
+	require.True(t, success)
+
+	peerid, err := rt.Find(ctx, key1)
+	require.NoError(t, err)
+	require.Equal(t, p, peerid)
+
+	peerid, err = rt.Find(ctx, key2)
+	require.NoError(t, err)
+	require.Nil(t, peerid)
+
+	success, err = rt.RemoveKey(ctx, key1)
+	require.NoError(t, err)
+	require.True(t, success)
+
+	peerid, err = rt.Find(ctx, key1)
+	require.NoError(t, err)
+	require.Nil(t, peerid)
 }
 
 func TestNearestPeers(t *testing.T) {
 	ctx := context.Background()
 
-	peerIds := make([]peer.ID, 0, 12)
+	peerIds := make([]peerid.PeerID, 0, 12)
 	for i := 0; i < 12; i++ {
-		peerIds = append(peerIds, peer.ID(fmt.Sprintf("QmPeer%d", i)))
+		peerIds = append(peerIds, peerid.PeerID{ID: peer.ID(fmt.Sprintf("QmPeer%d", i))})
 	}
 
 	bucketSize := 5
@@ -143,13 +196,15 @@ func TestNearestPeers(t *testing.T) {
 	rt.addPeer(ctx, key11, peerIds[11])
 
 	// find the 5 nearest peers to key0
-	peers := rt.NearestPeers(ctx, key0, bucketSize)
+	peers, err := rt.NearestPeers(ctx, key0, bucketSize)
+	require.NoError(t, err)
 	require.Equal(t, bucketSize, len(peers))
 
 	expectedOrder := []address.NodeID{peerIds[9], peerIds[8], peerIds[7], peerIds[10], peerIds[11]}
 	require.Equal(t, expectedOrder, peers)
 
-	peers = rt.NearestPeers(ctx, key11, 2)
+	peers, err = rt.NearestPeers(ctx, key11, 2)
+	require.NoError(t, err)
 	require.Equal(t, 2, len(peers))
 
 	// create routing table with a single duplicate peer
@@ -157,6 +212,7 @@ func TestNearestPeers(t *testing.T) {
 	rt2 := NewSimpleRT(key0, 2)
 	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{peerIds[1], key1})
 	rt2.buckets[0] = append(rt2.buckets[0], peerInfo{peerIds[1], key1})
-	peers = rt2.NearestPeers(ctx, key0, 10)
+	peers, err = rt2.NearestPeers(ctx, key0, 10)
+	require.NoError(t, err)
 	require.Equal(t, peers[0], peers[1])
 }

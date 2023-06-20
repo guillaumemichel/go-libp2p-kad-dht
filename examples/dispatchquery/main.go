@@ -19,6 +19,8 @@ import (
 	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/addrinfo"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/fakeendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
@@ -47,30 +49,33 @@ func queryTest(ctx context.Context) {
 	dispatcher := sd.NewSimpleDispatcher(clk)
 
 	// create peer A
-	selfA := peer.ID("alpha") // peer.ID is necessary for ipfskadv1 message format
+	selfA := peerid.PeerID{ID: peer.ID("alpha")} // peer.ID is necessary for ipfskadv1 message format
 	addrA := multiaddr.StringCast("/ip4/1.1.1.1/tcp/4001/")
-	var naddrA address.NetworkAddress = peer.AddrInfo{ID: selfA, Addrs: []multiaddr.Multiaddr{addrA}}
-	rtA := simplert.NewSimpleRT(address.KadID(selfA), 2)
+	var naddrA address.NetworkAddress = addrinfo.AddrInfo{
+		AddrInfo: peer.AddrInfo{ID: selfA.ID, Addrs: []multiaddr.Multiaddr{addrA}}}
+	rtA := simplert.NewSimpleRT(selfA.Key(), 2)
 	endpointA := fakeendpoint.NewFakeEndpoint(selfA, dispatcher)
 	schedA := ss.NewSimpleScheduler(ctx, clk)
 	servA := simipfsserver.NewSimServer(rtA, endpointA)
 	dispatcher.AddPeer(selfA, schedA, servA)
 
 	// create peer B
-	selfB := peer.ID("beta")
+	selfB := peerid.PeerID{ID: peer.ID("beta")}
 	addrB := multiaddr.StringCast("/ip4/2.2.2.2/tcp/4001/")
-	var naddrB address.NetworkAddress = peer.AddrInfo{ID: selfB, Addrs: []multiaddr.Multiaddr{addrB}}
-	rtB := simplert.NewSimpleRT(address.KadID(selfB), 2)
+	var naddrB address.NetworkAddress = addrinfo.AddrInfo{
+		AddrInfo: peer.AddrInfo{ID: selfB.ID, Addrs: []multiaddr.Multiaddr{addrB}}}
+	rtB := simplert.NewSimpleRT(selfB.Key(), 2)
 	endpointB := fakeendpoint.NewFakeEndpoint(selfB, dispatcher)
 	schedB := ss.NewSimpleScheduler(ctx, clk)
 	servB := simipfsserver.NewSimServer(rtB, endpointB)
 	dispatcher.AddPeer(selfB, schedB, servB)
 
 	// create peer C
-	selfC := peer.ID("gamma")
+	selfC := peerid.PeerID{ID: peer.ID("gamma")}
 	addrC := multiaddr.StringCast("/ip4/3.3.3.3/tcp/4001/")
-	var naddrC address.NetworkAddress = peer.AddrInfo{ID: selfC, Addrs: []multiaddr.Multiaddr{addrC}}
-	rtC := simplert.NewSimpleRT(address.KadID(selfC), 2)
+	var naddrC address.NetworkAddress = addrinfo.AddrInfo{
+		AddrInfo: peer.AddrInfo{ID: selfC.ID, Addrs: []multiaddr.Multiaddr{addrC}}}
+	rtC := simplert.NewSimpleRT(selfC.Key(), 2)
 	endpointC := fakeendpoint.NewFakeEndpoint(selfC, dispatcher)
 	schedC := ss.NewSimpleScheduler(ctx, clk)
 	servC := simipfsserver.NewSimServer(rtC, endpointC)
@@ -90,7 +95,7 @@ func queryTest(ctx context.Context) {
 
 	// create find peer request
 	_, bin, _ := multibase.Decode(targetBytesID)
-	target := peer.ID(bin)
+	target := peerid.PeerID{ID: peer.ID(bin)}
 	req := ipfskadv1.FindPeerRequest(target)
 
 	// dummy parameters
@@ -98,7 +103,7 @@ func queryTest(ctx context.Context) {
 		fmt.Println(resp.CloserNodes())
 		return nil
 	}
-	sq.NewSimpleQuery(ctx, address.KadID(target), req, 1, time.Second, endpointA, rtA, schedA, handleResp)
+	sq.NewSimpleQuery(ctx, target.Key(), req, 1, time.Second, endpointA, rtA, schedA, handleResp)
 
 	// run simulation
 	dispatcher.DispatchLoop(ctx)

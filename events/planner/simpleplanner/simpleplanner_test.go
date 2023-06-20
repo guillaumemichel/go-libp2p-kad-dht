@@ -60,12 +60,41 @@ func TestSimplePlanner(t *testing.T) {
 	p.RemoveAction(ctx, a0)
 	clk.Add(time.Second)
 
-	p.RemoveAction(ctx, actions[7])
 	p.RemoveAction(ctx, a6)
 	require.Equal(t, actions[7:8], p.PopOverdueActions(ctx))
 
 	p.RemoveAction(ctx, a8)
 	require.Empty(t, p.PopOverdueActions(ctx))
+}
+
+type otherPlannedAction int
+
+func (a otherPlannedAction) Action() action.Action {
+	return ta.IntAction(int(a))
+}
+
+func (a otherPlannedAction) Time() time.Time {
+	return time.Time{}
+}
+
+func TestSimplePlannedAction(t *testing.T) {
+	ctx := context.Background()
+	clk := clock.NewMock()
+	p := NewSimplePlanner(clk)
+
+	a0 := p.ScheduleAction(ctx, clk.Now().Add(time.Millisecond), ta.IntAction(0))
+	require.Equal(t, ta.IntAction(0), a0.Action())
+	require.Equal(t, clk.Now().Add(time.Millisecond), a0.Time())
+
+	a1 := otherPlannedAction(1)
+	p.RemoveAction(ctx, a1)
+
+	clk.Add(time.Millisecond)
+
+	overdueActions := p.PopOverdueActions(ctx)
+	require.Equal(t, 1, len(overdueActions))
+	require.Equal(t, a0.Action(), overdueActions[0])
+	require.Nil(t, p.PopOverdueActions(ctx))
 }
 
 func TestNextActionTime(t *testing.T) {

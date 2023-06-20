@@ -63,9 +63,9 @@ func TestSimpleScheduler(t *testing.T) {
 	require.True(t, actions[5].Ran)
 
 	t6 := clk.Now().Add(time.Second)
-	sched.ScheduleAction(ctx, t6, actions[6])
+	a6 := sched.ScheduleAction(ctx, t6, actions[6])
 	require.Equal(t, t6, sched.NextActionTime(ctx))
-	sched.RemovePlannedAction(ctx, actions[6])
+	sched.RemovePlannedAction(ctx, a6)
 	clk.Add(time.Second)
 	sched.RunOne(ctx)
 	require.False(t, actions[6].Ran)
