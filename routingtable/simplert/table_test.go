@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
+	si "github.com/libp2p/go-libp2p-kad-dht/network/address/stringid"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -35,10 +36,12 @@ var (
 	key11 = key.KadKey(append([]byte{0x30}, zeroBytes(31)...)) // 001100...100
 )
 
-func TestBucketSize(t *testing.T) {
+func TestBasic(t *testing.T) {
 	bucketSize := 100
 	rt := NewSimpleRT(key0, bucketSize)
 	require.Equal(t, bucketSize, rt.BucketSize())
+
+	require.Equal(t, key0, rt.Self())
 }
 
 func TestAddPeer(t *testing.T) {
@@ -215,4 +218,31 @@ func TestNearestPeers(t *testing.T) {
 	peers, err = rt2.NearestPeers(ctx, key0, 10)
 	require.NoError(t, err)
 	require.Equal(t, peers[0], peers[1])
+}
+
+func TestInvalidKeys(t *testing.T) {
+	ctx := context.Background()
+	dummyNodeId := si.StringID("dummy")
+	invalidKey := key.KadKey(zeroBytes(4)) // key is shorter (4 bytes only)
+
+	rt := NewSimpleRT(key0, 2)
+	success, err := rt.addPeer(ctx, invalidKey, dummyNodeId)
+	require.Equal(t, err, key.ErrInvalidKey(32))
+	require.False(t, success)
+
+	bid, err := rt.BucketIdForKey(invalidKey)
+	require.Equal(t, err, key.ErrInvalidKey(32))
+	require.Equal(t, bid, 0)
+
+	success, err = rt.RemoveKey(ctx, invalidKey)
+	require.Equal(t, err, key.ErrInvalidKey(32))
+	require.False(t, success)
+
+	nodeID, err := rt.Find(ctx, invalidKey)
+	require.Equal(t, err, key.ErrInvalidKey(32))
+	require.Nil(t, nodeID)
+
+	nodeIDs, err := rt.NearestPeers(ctx, invalidKey, 2)
+	require.Equal(t, err, key.ErrInvalidKey(32))
+	require.Nil(t, nodeIDs)
 }
