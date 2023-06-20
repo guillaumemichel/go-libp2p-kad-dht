@@ -3,6 +3,7 @@ package simplerouting
 import (
 	"context"
 
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	lendpoint "github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
@@ -42,6 +43,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 
 	kadid := pid.Key()
 	req := ipfskadv1.FindPeerRequest(pid)
+	resp := &ipfskadv1.Message{}
 
 	resultsChan := make(chan any) // peer.AddrInfo
 	handleResultsFn := getFindPeerHandleResultsFn(p, resultsChan)
@@ -51,7 +53,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	defer cancel()
 
 	// create the query and add appropriate events to the event queue
-	sq.NewSimpleQuery(ctx, kadid, req, r.queryConcurrency, r.queryTimeout,
+	sq.NewSimpleQuery(ctx, kadid, req, resp, r.queryConcurrency, r.queryTimeout,
 		r.msgEndpoint, r.rt, r.sched, handleResultsFn)
 
 	// only one dial runs at a time to ensure sequentiality
@@ -146,7 +148,7 @@ func containsNewAddresses(newAddrs, oldAddrs []multiaddr.Multiaddr) (bool, []mul
 // peer.ID of the result matches the peer.ID we are looking for. If one does,
 // it writes the result to the resultsChan and returns nil
 func getFindPeerHandleResultsFn(p peer.ID, resultsChan chan any) sq.HandleResultFn {
-	return func(ctx context.Context, i sq.QueryState, m message.MinKadResponseMessage) sq.QueryState {
+	return func(ctx context.Context, i sq.QueryState, id address.NodeID, m message.MinKadResponseMessage) sq.QueryState {
 
 		ctx, span := util.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")
 		defer span.End()

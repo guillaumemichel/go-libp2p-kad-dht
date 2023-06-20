@@ -12,6 +12,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	tutil "github.com/libp2p/go-libp2p-kad-dht/examples/util"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
@@ -66,14 +67,15 @@ func FindPeer(ctx context.Context) {
 	targetID := peerid.PeerID{ID: target}
 
 	req := ipfskadv1.FindPeerRequest(targetID)
+	resp := &ipfskadv1.Message{}
 	success, err := rt.AddPeer(ctx, friendID)
 	if err != nil || !success {
 		panic("failed to add friend to rt")
 	}
-	//req.ClusterLevelRaw = int32(1)
 
 	endCond := false
-	handleResultsFn := func(ctx context.Context, state simplequery.QueryState, resp message.MinKadResponseMessage) simplequery.QueryState {
+	handleResultsFn := func(ctx context.Context, state simplequery.QueryState,
+		_ address.NodeID, resp message.MinKadResponseMessage) simplequery.QueryState {
 		msg, ok := resp.(*ipfskadv1.Message)
 		if !ok {
 			fmt.Println("invalid response!")
@@ -95,7 +97,8 @@ func FindPeer(ctx context.Context) {
 		return nil
 	}
 
-	simplequery.NewSimpleQuery(ctx, targetID.Key(), req, 1, 5*time.Second, msgEndpoint, rt, sched, handleResultsFn)
+	simplequery.NewSimpleQuery(ctx, targetID.Key(), req, resp, 1, 5*time.Second,
+		msgEndpoint, rt, sched, handleResultsFn)
 
 	for i := 0; i < 1000 && !endCond; i++ {
 		for sched.RunOne(ctx) {

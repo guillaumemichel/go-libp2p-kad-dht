@@ -7,6 +7,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/kadid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/fakeendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
@@ -84,9 +85,10 @@ func findNode(ctx context.Context) {
 	eps[3].MaybeAddToPeerstore(ctx, ids[2], peerstoreTTL)
 	rts[3].AddPeer(ctx, ids[2])
 
-	req := simmessage.NewSimRequest(ids[3])
+	req := simmessage.NewSimRequest(ids[3].Key())
+	resp := &simmessage.SimMessage{}
 
-	handleResFn := func(_ context.Context, _ sq.QueryState, msg message.MinKadResponseMessage) sq.QueryState {
+	handleResFn := func(_ context.Context, _ sq.QueryState, _ address.NodeID, msg message.MinKadResponseMessage) sq.QueryState {
 		resp, ok := msg.(*simmessage.SimMessage)
 		if !ok {
 			panic("not a simmessage")
@@ -101,7 +103,7 @@ func findNode(ctx context.Context) {
 		return nil
 	}
 
-	sq.NewSimpleQuery(ctx, ids[3].Key(), req, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
+	sq.NewSimpleQuery(ctx, ids[3].Key(), req, resp, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
 
 	dispatcher.DispatchLoop(ctx)
 

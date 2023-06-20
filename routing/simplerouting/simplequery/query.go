@@ -31,15 +31,16 @@ var (
 
 // TODO: Options: NClosestPeers, QueuedPeersPeerstoreTTL, concurrency int, timeout time.Duration
 
-type QueryState []any
+type QueryState any
 
-type HandleResultFn func(context.Context, QueryState, message.MinKadResponseMessage) QueryState
+type HandleResultFn func(context.Context, QueryState, address.NodeID, message.MinKadResponseMessage) QueryState
 
 type SimpleQuery struct {
 	ctx         context.Context
 	done        bool
 	kadid       key.KadKey
 	req         message.MinKadMessage
+	resp        message.MinKadResponseMessage
 	concurrency int
 	timeout     time.Duration
 
@@ -63,7 +64,7 @@ type SimpleQuery struct {
 // parameters. The query keeps track of the closest known peers to the target
 // key, and the peers that have been queried so far.
 func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMessage,
-	concurrency int, timeout time.Duration,
+	resp message.MinKadResponseMessage, concurrency int, timeout time.Duration,
 	msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
 	sched scheduler.Scheduler, handleResultFn HandleResultFn) *SimpleQuery {
 
@@ -83,6 +84,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 	q := &SimpleQuery{
 		ctx:              ctx,
 		req:              req,
+		resp:             resp,
 		kadid:            kadid,
 		concurrency:      concurrency,
 		timeout:          timeout,
@@ -91,7 +93,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 		inflightRequests: 0,
 		peerlist:         pl,
 		sched:            sched,
-		state:            QueryState{},
+		state:            nil,
 		handleResultFn:   handleResultFn,
 	}
 
@@ -148,15 +150,6 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	}
 	span.AddEvent("peer selected: " + id.String())
 
-	// dial peer
-	if err := q.msgEndpoint.DialPeer(ctx, id); err != nil {
-		span.AddEvent("peer dial failed")
-		q.sched.EnqueueAction(ctx, ba.BasicAction(func(ctx context.Context) {
-			q.requestError(ctx, id, err)
-		}))
-		return
-	}
-
 	// add timeout to scheduler
 	timeoutAction := scheduler.ScheduleActionIn(ctx, q.sched, q.timeout,
 		ba.BasicAction(func(ctx context.Context) {
@@ -181,7 +174,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	}
 
 	// send request
-	q.msgEndpoint.SendRequestHandleResponse(ctx, id, q.req, handleResp)
+	q.msgEndpoint.SendRequestHandleResponse(ctx, id, q.req, q.resp, handleResp)
 }
 
 func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, resp message.MinKadResponseMessage) {
@@ -229,7 +222,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 	q.peerlist.addToPeerlist(newPeerIds)
 
 	var stop bool
-	q.state = q.handleResultFn(ctx, q.state, resp)
+	q.state = q.handleResultFn(ctx, q.state, id, resp)
 	if stop {
 		// query is done, don't send any more requests
 		span.AddEvent("query success")

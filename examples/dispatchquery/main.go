@@ -97,13 +97,15 @@ func queryTest(ctx context.Context) {
 	_, bin, _ := multibase.Decode(targetBytesID)
 	target := peerid.PeerID{ID: peer.ID(bin)}
 	req := ipfskadv1.FindPeerRequest(target)
+	resp := &ipfskadv1.Message{}
 
 	// dummy parameters
-	handleResp := func(ctx context.Context, s sq.QueryState, resp message.MinKadResponseMessage) sq.QueryState {
+	handleResp := func(ctx context.Context, s sq.QueryState, _ address.NodeID, resp message.MinKadResponseMessage) sq.QueryState {
 		fmt.Println(resp.CloserNodes())
 		return nil
 	}
-	sq.NewSimpleQuery(ctx, target.Key(), req, 1, time.Second, endpointA, rtA, schedA, handleResp)
+	sq.NewSimpleQuery(ctx, target.Key(), req, resp, 1, time.Second, endpointA,
+		rtA, schedA, handleResp)
 
 	// run simulation
 	dispatcher.DispatchLoop(ctx)

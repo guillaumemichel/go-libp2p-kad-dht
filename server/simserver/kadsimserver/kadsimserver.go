@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
-	"github.com/libp2p/go-libp2p-kad-dht/network/address/kadid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
@@ -38,6 +37,7 @@ func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.
 	req, ok := msg.(*simmessage.SimMessage)
 	if !ok {
 		// invalid request
+		sendFn(ctx, nil, message.ErrInvalidRequest)
 		return
 	}
 
@@ -51,6 +51,7 @@ func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.
 	peers, err := s.rt.NearestPeers(ctx, req.Target(), nClosestPeers)
 	if err != nil {
 		span.RecordError(err)
+		sendFn(ctx, nil, err)
 		return
 	}
 
@@ -58,11 +59,7 @@ func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.
 		attribute.Int("count", len(peers)),
 	))
 
-	kadPeers := make([]kadid.KadID, len(peers))
-	for i, p := range peers {
-		kadPeers[i] = p.(kadid.KadID)
-	}
-	resp := simmessage.NewSimResponse(kadPeers)
+	resp := simmessage.NewSimResponse(peers)
 
 	sendFn(ctx, resp, nil)
 }

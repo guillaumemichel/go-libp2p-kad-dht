@@ -25,10 +25,10 @@ const (
 
 type SimServer struct {
 	rt       routingtable.RoutingTable
-	endpoint endpoint.Endpoint
+	endpoint endpoint.NetworkedEndpoint
 }
 
-func NewSimServer(rt routingtable.RoutingTable, endpoint endpoint.Endpoint) *SimServer {
+func NewSimServer(rt routingtable.RoutingTable, endpoint endpoint.NetworkedEndpoint) *SimServer {
 	return &SimServer{
 		rt:       rt,
 		endpoint: endpoint,
@@ -68,7 +68,7 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 		attribute.Int("count", len(peers)),
 		attribute.String("peer", peers[0].String())))
 
-	resp := ipfskadv1.FindPeerResponse(pid, peers, s.endpoint)
+	resp := ipfskadv1.FindPeerResponse(peers, s.endpoint)
 
 	sendFn(ctx, resp, nil)
 }

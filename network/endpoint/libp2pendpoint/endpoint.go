@@ -12,7 +12,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -117,7 +116,8 @@ func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ctx context.Context,
 	return nil
 }
 
-func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n address.NodeID, req message.MinKadMessage, responseHandlerFn endpoint.ResponseHandlerFn) {
+func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n address.NodeID, req message.MinKadMessage,
+	resp message.MinKadMessage, responseHandlerFn endpoint.ResponseHandlerFn) {
 	go func() {
 		ctx, span := util.StartSpan(context.Background(), "Libp2pEndpoint.SendRequestHandleResponse", trace.WithAttributes(
 			attribute.String("PeerID", n.String()),
@@ -125,8 +125,14 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n addres
 
 		defer span.End()
 
-		protoResp := &ipfskadv1.Message{}
 		var err error
+		protoResp, ok := resp.(message.ProtoKadResponseMessage)
+
+		if !ok {
+			err = errors.New("Libp2pEndpoint requires ProtoKadResponseMessage")
+			span.RecordError(err)
+			return
+		}
 		defer responseHandlerFn(ctx, protoResp, err)
 
 		protoReq, ok := req.(message.ProtoKadRequestMessage)

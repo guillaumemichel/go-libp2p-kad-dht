@@ -14,14 +14,20 @@ type DialReportFn func(context.Context, bool)
 type ResponseHandlerFn func(context.Context, message.MinKadResponseMessage, error)
 
 type Endpoint interface {
-	AsyncDialAndReport(context.Context, address.NodeID, DialReportFn)
-	DialPeer(context.Context, address.NodeID) error
+	//AsyncDialAndReport(context.Context, address.NodeID, DialReportFn)
+	//DialPeer(context.Context, address.NodeID) error
 	MaybeAddToPeerstore(context.Context, address.NetworkAddress, time.Duration) error
-	SendRequest(context.Context, address.NodeID, message.MinKadMessage, message.MinKadMessage) error
-	SendRequestHandleResponse(context.Context, address.NodeID, message.MinKadMessage, ResponseHandlerFn)
+	//SendRequest(context.Context, address.NodeID, message.MinKadMessage, message.MinKadMessage) error
+	SendRequestHandleResponse(context.Context, address.NodeID,
+		message.MinKadMessage, message.MinKadMessage, ResponseHandlerFn)
 
 	// Peerstore functions
 	KadKey() key.KadKey
-	Connectedness(address.NodeID) network.Connectedness
+	//Connectedness(address.NodeID) network.Connectedness
 	NetworkAddress(address.NodeID) (address.NetworkAddress, error)
+}
+
+type NetworkedEndpoint interface {
+	Endpoint
+	Connectedness(address.NodeID) network.Connectedness
 }

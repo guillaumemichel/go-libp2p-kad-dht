@@ -37,12 +37,6 @@ func NewFakeEndpoint(self address.NodeID, dispatcher *sd.SimpleDispatcher) *Fake
 	}
 }
 
-func (e *FakeEndpoint) AsyncDialAndReport(ctx context.Context, id address.NodeID,
-	reportFn endpoint.DialReportFn) {
-
-	reportFn(ctx, e.DialPeer(ctx, id) == nil)
-}
-
 func (e *FakeEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
 	_, span := util.StartSpan(ctx, "DialPeer",
 		trace.WithAttributes(attribute.String("id", id.String())),
@@ -58,8 +52,6 @@ func (e *FakeEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
 		case network.CanConnect:
 			e.connStatus[id.String()] = network.Connected
 			return nil
-		case network.CannotConnect:
-			return endpoint.ErrCannotConnect
 		}
 	}
 	span.RecordError(endpoint.ErrUnknownPeer)
@@ -85,14 +77,9 @@ func (e *FakeEndpoint) MaybeAddToPeerstore(ctx context.Context, na address.Netwo
 	return nil
 }
 
-func (e *FakeEndpoint) SendRequest(ctx context.Context, id address.NodeID,
-	req message.MinKadMessage, resp message.MinKadMessage) error {
-
-	return nil
-}
-
-func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context, id address.NodeID,
-	msg message.MinKadMessage, handleResp endpoint.ResponseHandlerFn) {
+func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context,
+	id address.NodeID, msg message.MinKadMessage,
+	resp message.MinKadMessage, handleResp endpoint.ResponseHandlerFn) {
 
 	ctx, span := util.StartSpan(ctx, "SendRequestHandleResponse",
 		trace.WithAttributes(attribute.Stringer("id", id)),
@@ -105,6 +92,9 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context, id address
 
 	req := msg
 	remoteServ := e.dispatcher.Server(id)
+	if remoteServ == nil {
+		return
+	}
 	action := ba.BasicAction(func(ctx context.Context) {
 		remoteServ.HandleFindNodeRequest(ctx, e.self, req, handleResp)
 	})

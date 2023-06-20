@@ -5,12 +5,12 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
-	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
+	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 )
 
 type SimpleRouting struct {
-	msgEndpoint endpoint.Endpoint
+	msgEndpoint *libp2pendpoint.Libp2pEndpoint
 	rt          routingtable.RoutingTable
 
 	sched scheduler.Scheduler
@@ -23,7 +23,7 @@ type SimpleRouting struct {
 	// list of ongoing queries, useful if we want to limit the queries
 }
 
-func NewSimpleRouting(self key.KadKey, msgEndpoint endpoint.Endpoint,
+func NewSimpleRouting(self key.KadKey, msgEndpoint *libp2pendpoint.Libp2pEndpoint,
 	rt routingtable.RoutingTable, sched scheduler.Scheduler,
 	options ...Option) (*SimpleRouting, error) {
 
