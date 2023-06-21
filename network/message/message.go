@@ -12,7 +12,7 @@ type MinKadMessage interface {
 type MinKadRequestMessage interface {
 	MinKadMessage
 
-	Target() key.KadKey
+	Target() *key.KadKey
 }
 
 type MinKadResponseMessage interface {

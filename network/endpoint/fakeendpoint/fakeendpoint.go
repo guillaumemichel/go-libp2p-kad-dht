@@ -90,13 +90,19 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context,
 		return
 	}
 
+	replyFn := func(msg message.MinKadResponseMessage) {
+		e.dispatcher.DispatchTo(ctx, e.self, ba.BasicAction(func(ctx context.Context) {
+			handleResp(ctx, msg, nil)
+		}))
+	}
+
 	req := msg
 	remoteServ := e.dispatcher.Server(id)
 	if remoteServ == nil {
 		return
 	}
 	action := ba.BasicAction(func(ctx context.Context) {
-		remoteServ.HandleFindNodeRequest(ctx, e.self, req, handleResp)
+		remoteServ.HandleFindNodeRequest(ctx, e.self, req, replyFn)
 	})
 	e.dispatcher.DispatchTo(ctx, id, action)
 }

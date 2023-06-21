@@ -49,9 +49,13 @@ func queryTest(ctx context.Context) {
 	dispatcher := sd.NewSimpleDispatcher(clk)
 
 	// create peer A
-	selfA := peerid.PeerID{ID: peer.ID("alpha")} // peer.ID is necessary for ipfskadv1 message format
+	pidA, err := peer.Decode("12BooooALPHA")
+	if err != nil {
+		panic(err)
+	}
+	selfA := &peerid.PeerID{ID: pidA} // peer.ID is necessary for ipfskadv1 message format
 	addrA := multiaddr.StringCast("/ip4/1.1.1.1/tcp/4001/")
-	var naddrA address.NetworkAddress = addrinfo.AddrInfo{
+	var naddrA address.NetworkAddress = &addrinfo.AddrInfo{
 		AddrInfo: peer.AddrInfo{ID: selfA.ID, Addrs: []multiaddr.Multiaddr{addrA}}}
 	rtA := simplert.NewSimpleRT(selfA.Key(), 2)
 	endpointA := fakeendpoint.NewFakeEndpoint(selfA, dispatcher)
@@ -60,9 +64,13 @@ func queryTest(ctx context.Context) {
 	dispatcher.AddPeer(selfA, schedA, servA)
 
 	// create peer B
-	selfB := peerid.PeerID{ID: peer.ID("beta")}
+	pidB, err := peer.Decode("12BoooooBETA")
+	if err != nil {
+		panic(err)
+	}
+	selfB := &peerid.PeerID{ID: pidB}
 	addrB := multiaddr.StringCast("/ip4/2.2.2.2/tcp/4001/")
-	var naddrB address.NetworkAddress = addrinfo.AddrInfo{
+	var naddrB address.NetworkAddress = &addrinfo.AddrInfo{
 		AddrInfo: peer.AddrInfo{ID: selfB.ID, Addrs: []multiaddr.Multiaddr{addrB}}}
 	rtB := simplert.NewSimpleRT(selfB.Key(), 2)
 	endpointB := fakeendpoint.NewFakeEndpoint(selfB, dispatcher)
@@ -71,9 +79,13 @@ func queryTest(ctx context.Context) {
 	dispatcher.AddPeer(selfB, schedB, servB)
 
 	// create peer C
-	selfC := peerid.PeerID{ID: peer.ID("gamma")}
+	pidC, err := peer.Decode("12BooooGAMMA")
+	if err != nil {
+		panic(err)
+	}
+	selfC := &peerid.PeerID{ID: pidC}
 	addrC := multiaddr.StringCast("/ip4/3.3.3.3/tcp/4001/")
-	var naddrC address.NetworkAddress = addrinfo.AddrInfo{
+	var naddrC address.NetworkAddress = &addrinfo.AddrInfo{
 		AddrInfo: peer.AddrInfo{ID: selfC.ID, Addrs: []multiaddr.Multiaddr{addrC}}}
 	rtC := simplert.NewSimpleRT(selfC.Key(), 2)
 	endpointC := fakeendpoint.NewFakeEndpoint(selfC, dispatcher)

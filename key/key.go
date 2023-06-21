@@ -49,7 +49,7 @@ func (a KadKey) CommonPrefixLength(b KadKey) (int, error) {
 // Compare returns -1 if a < b, 0 if a == b, and 1 if a > b
 func (a KadKey) Compare(b KadKey) (int8, error) {
 	if a.Size() != b.Size() {
-		return 0, ErrInvalidKey(a.Size())
+		return 2, ErrInvalidKey(a.Size())
 	}
 
 	for i := 0; i < a.Size(); i++ {
@@ -61,4 +61,9 @@ func (a KadKey) Compare(b KadKey) (int8, error) {
 		}
 	}
 	return 0, nil
+}
+
+func (a KadKey) Equal(b KadKey) (bool, error) {
+	cmp, err := a.Compare(b)
+	return cmp == 0, err
 }

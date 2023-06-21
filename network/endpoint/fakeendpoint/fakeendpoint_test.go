@@ -28,9 +28,9 @@ func TestFakeEndpoint(t *testing.T) {
 	dispatcher := simpledispatcher.NewSimpleDispatcher(clk)
 	fakeEndpoint := NewFakeEndpoint(kadid, dispatcher)
 
-	c, err := kadid.Key().Compare(fakeEndpoint.KadKey())
+	b, err := kadid.Key().Equal(fakeEndpoint.KadKey())
 	require.NoError(t, err)
-	require.Equal(t, int8(0), c)
+	require.True(t, b)
 
 	node0 := si.StringID("node0")
 	err = fakeEndpoint.DialPeer(ctx, node0)
@@ -65,15 +65,26 @@ func TestFakeEndpoint(t *testing.T) {
 
 	fakeEndpoint.SendRequestHandleResponse(ctx, node0, req, resp, respHandler)
 
+	sched := simplescheduler.NewSimpleScheduler(ctx, clk)
+	rt := simplert.NewSimpleRT(kadid.Key(), 2)
+	serv := kadsimserver.NewKadSimServer(rt, fakeEndpoint)
+	dispatcher.AddPeer(kadid, sched, serv)
+
+	fakeEndpoint0 := NewFakeEndpoint(node0, dispatcher)
 	sched0 := simplescheduler.NewSimpleScheduler(ctx, clk)
-	rt0 := simplert.NewSimpleRT(kadid.Key(), 2)
-	serv0 := kadsimserver.NewKadSimServer(rt0, fakeEndpoint)
+	rt0 := simplert.NewSimpleRT(node0.Key(), 2)
+	serv0 := kadsimserver.NewKadSimServer(rt0, fakeEndpoint0)
 	dispatcher.AddPeer(node0, sched0, serv0)
 
 	fakeEndpoint.SendRequestHandleResponse(ctx, node0, req, resp, respHandler)
 
 	require.True(t, sched0.RunOne(ctx))
 	require.False(t, sched0.RunOne(ctx))
+
+	require.False(t, runCheck)
+
+	require.True(t, sched.RunOne(ctx))
+	require.False(t, sched.RunOne(ctx))
 
 	require.True(t, runCheck)
 }

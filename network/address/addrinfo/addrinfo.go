@@ -11,5 +11,5 @@ type AddrInfo struct {
 }
 
 func (ai AddrInfo) NodeID() address.NodeID {
-	return peerid.PeerID{ID: ai.ID}
+	return &peerid.PeerID{ID: ai.ID}
 }

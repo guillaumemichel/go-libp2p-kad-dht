@@ -87,3 +87,5 @@ customs functions as parameters
 
 Dial and Send should be the same interface exposed by endpoint
 handle stream errors on response handling
+
+Make sure the same response (q.resp) isn't used for multiple requests. It must be reset, but I am not sure if libp2p resets it or if it juste overwrites the received fields.

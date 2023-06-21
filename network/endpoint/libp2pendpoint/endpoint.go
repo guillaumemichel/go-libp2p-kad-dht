@@ -102,7 +102,7 @@ func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ctx context.Context,
 		trace.WithAttributes(attribute.String("PeerID", na.NodeID().String())))
 	defer span.End()
 
-	ai, ok := na.(addrinfo.AddrInfo)
+	ai, ok := na.(*addrinfo.AddrInfo)
 	if !ok {
 		return endpoint.ErrInvalidPeer
 	}
@@ -126,26 +126,28 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n addres
 		defer span.End()
 
 		var err error
-		protoResp, ok := resp.(message.ProtoKadResponseMessage)
 
+		protoResp, ok := resp.(message.ProtoKadResponseMessage)
 		if !ok {
 			err = errors.New("Libp2pEndpoint requires ProtoKadResponseMessage")
 			span.RecordError(err)
+			responseHandlerFn(ctx, nil, err)
 			return
 		}
-		defer responseHandlerFn(ctx, protoResp, err)
 
-		protoReq, ok := req.(message.ProtoKadRequestMessage)
+		protoReq, ok := req.(message.ProtoKadMessage)
 		if !ok {
-			err = errors.New("Libp2pEndpoint requires ProtoKadRequestMessage")
+			err = errors.New("Libp2pEndpoint requires ProtoKadMessage")
 			span.RecordError(err)
+			responseHandlerFn(ctx, nil, err)
 			return
 		}
 
-		p, ok := n.(peerid.PeerID)
+		p, ok := n.(*peerid.PeerID)
 		if !ok {
 			err = errors.New("Libp2pEndpoint requires peer.ID")
 			span.RecordError(err)
+			responseHandlerFn(ctx, nil, err)
 			return
 		}
 
@@ -153,6 +155,7 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n addres
 		s, err = e.host.NewStream(ctx, p.ID, e.protoID)
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("where", "stream creation")))
+			responseHandlerFn(ctx, nil, err)
 			return
 		}
 		defer s.Close()
@@ -160,15 +163,19 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n addres
 		err = WriteMsg(s, protoReq)
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("where", "write message")))
+			responseHandlerFn(ctx, nil, err)
 			return
 		}
 
 		err = ReadMsg(s, protoResp)
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("where", "read message")))
+			responseHandlerFn(ctx, protoResp, err)
+			return
 		}
 
 		span.AddEvent("response received")
+		responseHandlerFn(ctx, protoResp, err)
 	}()
 }
 
@@ -231,5 +238,5 @@ func (e *Libp2pEndpoint) NetworkAddress(n address.NodeID) (address.NetworkAddres
 	if !ok {
 		return nil, errors.New("invalid peer.ID")
 	}
-	return addrinfo.AddrInfo{AddrInfo: e.host.Peerstore().PeerInfo(p.ID)}, nil
+	return &addrinfo.AddrInfo{AddrInfo: e.host.Peerstore().PeerInfo(p.ID)}, nil
 }

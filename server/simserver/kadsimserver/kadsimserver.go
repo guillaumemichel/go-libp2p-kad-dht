@@ -9,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
+	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -32,12 +33,17 @@ func NewKadSimServer(rt routingtable.RoutingTable, endpoint endpoint.Endpoint) *
 }
 
 func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.NetworkAddress,
-	msg message.MinKadMessage, sendFn endpoint.ResponseHandlerFn) {
+	msg message.MinKadMessage, replyFn simserver.ReplyFn) {
 
 	req, ok := msg.(*simmessage.SimMessage)
 	if !ok {
-		// invalid request
-		sendFn(ctx, nil, message.ErrInvalidRequest)
+		// invalid request, don't reply
+		return
+	}
+
+	target := req.Target()
+	if target == nil {
+		// invalid request, don't reply
 		return
 	}
 
@@ -45,13 +51,13 @@ func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.
 
 	_, span := util.StartSpan(ctx, "SimServer.HandleFindNodeRequest", trace.WithAttributes(
 		attribute.Stringer("Requester", rpeer.NodeID()),
-		attribute.Stringer("Target", req.Target())))
+		attribute.Stringer("Target", target)))
 	defer span.End()
 
-	peers, err := s.rt.NearestPeers(ctx, req.Target(), nClosestPeers)
+	peers, err := s.rt.NearestPeers(ctx, *target, nClosestPeers)
 	if err != nil {
 		span.RecordError(err)
-		sendFn(ctx, nil, err)
+		replyFn(nil)
 		return
 	}
 
@@ -61,5 +67,5 @@ func (s *KadSimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.
 
 	resp := simmessage.NewSimResponse(peers)
 
-	sendFn(ctx, resp, nil)
+	replyFn(resp)
 }

@@ -28,11 +28,7 @@ func StringKadID(s string) key.KadKey {
 }
 
 func zeroBytes(n int) []byte {
-	bytes := make([]byte, n)
-	for i := 0; i < n; i++ {
-		bytes[i] = 0
-	}
-	return bytes
+	return make([]byte, n)
 }
 
 func ZeroKey() key.KadKey {

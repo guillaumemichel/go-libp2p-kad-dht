@@ -14,7 +14,7 @@ func (k KadID) Key() key.KadKey {
 }
 
 func (k KadID) NodeID() address.NodeID {
-	return k
+	return &k
 }
 
 func (k KadID) String() string {

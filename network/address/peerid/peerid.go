@@ -17,5 +17,5 @@ func (id PeerID) Key() key.KadKey {
 }
 
 func (id PeerID) NodeID() address.NodeID {
-	return id
+	return &id
 }

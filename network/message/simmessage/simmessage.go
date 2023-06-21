@@ -6,13 +6,13 @@ import (
 )
 
 type SimMessage struct {
-	target      key.KadKey
+	target      *key.KadKey
 	closerPeers []address.NodeID
 }
 
 func NewSimRequest(target key.KadKey) *SimMessage {
 	return &SimMessage{
-		target: target,
+		target: &target,
 	}
 }
 
@@ -22,11 +22,14 @@ func NewSimResponse(closerPeers []address.NodeID) *SimMessage {
 	}
 }
 
-func (m *SimMessage) Target() key.KadKey {
+func (m *SimMessage) Target() *key.KadKey {
 	return m.target
 }
 
 func (m *SimMessage) CloserNodes() []address.NetworkAddress {
+	if m.closerPeers == nil {
+		return nil
+	}
 	nas := make([]address.NetworkAddress, len(m.closerPeers))
 	for i, peer := range m.closerPeers {
 		nas[i] = peer

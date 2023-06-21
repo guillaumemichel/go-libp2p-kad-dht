@@ -67,8 +67,8 @@ func FindPeer(ctx context.Context) {
 	targetID := peerid.PeerID{ID: target}
 
 	req := ipfskadv1.FindPeerRequest(targetID)
-	resp := &ipfskadv1.Message{}
-	success, err := rt.AddPeer(ctx, friendID)
+	var resp message.ProtoKadResponseMessage = &ipfskadv1.Message{}
+	success, err := rt.AddPeer(ctx, &friendID)
 	if err != nil || !success {
 		panic("failed to add friend to rt")
 	}

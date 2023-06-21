@@ -159,13 +159,17 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 
 	// function to be executed when a response is received
 	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage, err error) {
-		span.AddEvent("got a response")
+		ctx, span := util.StartSpan(ctx, "SimpleQuery.handleResp")
+		defer span.End()
+
 		q.sched.RemovePlannedAction(ctx, timeoutAction)
 		if err != nil {
+			span.AddEvent("got error")
 			q.sched.EnqueueAction(ctx, ba.BasicAction(func(ctx context.Context) {
 				q.requestError(ctx, id, err)
 			}))
 		} else {
+			span.AddEvent("got response")
 			q.sched.EnqueueAction(ctx, ba.BasicAction(func(ctx context.Context) {
 				q.handleResponse(ctx, id, resp)
 			}))
@@ -190,6 +194,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 	if resp == nil {
 		span.AddEvent("response is nil")
 		q.requestError(ctx, id, errors.New("nil response"))
+		return
 	}
 
 	q.inflightRequests--
@@ -236,7 +241,7 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 		newRequestsToSend = q.peerlist.queuedCount
 	}
 
-	span.AddEvent("newRequestsToSend: " + strconv.Itoa(newRequestsToSend) + "q.inflightRequests: " + strconv.Itoa(q.inflightRequests))
+	span.AddEvent("newRequestsToSend: " + strconv.Itoa(newRequestsToSend) + " q.inflightRequests: " + strconv.Itoa(q.inflightRequests))
 
 	for i := 0; i < newRequestsToSend; i++ {
 		// add new pending request(s) for this query to eventqueue
