@@ -27,6 +27,8 @@ type FakeEndpoint struct {
 	dispatcher *sd.SimpleDispatcher
 }
 
+var _ endpoint.Endpoint = (*FakeEndpoint)(nil)
+
 func NewFakeEndpoint(self address.NodeID, dispatcher *sd.SimpleDispatcher) *FakeEndpoint {
 	return &FakeEndpoint{
 		self:       self,
@@ -78,7 +80,7 @@ func (e *FakeEndpoint) MaybeAddToPeerstore(ctx context.Context, na address.Netwo
 }
 
 func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context,
-	id address.NodeID, msg message.MinKadMessage,
+	protoID address.ProtocolID, id address.NodeID, msg message.MinKadMessage,
 	resp message.MinKadMessage, handleResp endpoint.ResponseHandlerFn) {
 
 	ctx, span := util.StartSpan(ctx, "SendRequestHandleResponse",

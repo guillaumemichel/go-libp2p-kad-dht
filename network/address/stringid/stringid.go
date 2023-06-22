@@ -8,6 +8,12 @@ import (
 
 type StringID string
 
+var _ address.NodeID = (*StringID)(nil)
+
+func NewStringID(s string) *StringID {
+	return (*StringID)(&s)
+}
+
 func (s StringID) String() string {
 	return string(s)
 }

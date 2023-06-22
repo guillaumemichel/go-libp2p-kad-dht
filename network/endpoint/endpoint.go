@@ -10,24 +10,35 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 )
 
-type DialReportFn func(context.Context, bool)
+type RequestHandlerFn func(context.Context, address.NodeID,
+	message.MinKadMessage) (message.MinKadMessage, error)
 type ResponseHandlerFn func(context.Context, message.MinKadResponseMessage, error)
 
 type Endpoint interface {
-	//AsyncDialAndReport(context.Context, address.NodeID, DialReportFn)
-	//DialPeer(context.Context, address.NodeID) error
+	// MaybeAddToPeerstore adds the given address to the peerstore if it is
+	// valid and if it is not already there.
 	MaybeAddToPeerstore(context.Context, address.NetworkAddress, time.Duration) error
-	//SendRequest(context.Context, address.NodeID, message.MinKadMessage, message.MinKadMessage) error
-	SendRequestHandleResponse(context.Context, address.NodeID,
+	// SendRequestHandleResponse sends a request to the given peer and handles
+	// the response with the given handler.
+	SendRequestHandleResponse(context.Context, address.ProtocolID, address.NodeID,
 		message.MinKadMessage, message.MinKadMessage, ResponseHandlerFn)
 
-	// Peerstore functions
+	// KadKey returns the KadKey of the local node.
 	KadKey() key.KadKey
 	//Connectedness(address.NodeID) network.Connectedness
 	NetworkAddress(address.NodeID) (address.NetworkAddress, error)
 }
 
+type ServerEndpoint interface {
+	Endpoint
+	// AddRequestHandler registers a handler for a given protocol ID.
+	AddRequestHandler(address.ProtocolID, RequestHandlerFn)
+	// RemoveRequestHandler removes a handler for a given protocol ID.
+	RemoveRequestHandler(address.ProtocolID)
+}
+
 type NetworkedEndpoint interface {
 	Endpoint
+	// Connectedness returns the connectedness of the given peer.
 	Connectedness(address.NodeID) network.Connectedness
 }

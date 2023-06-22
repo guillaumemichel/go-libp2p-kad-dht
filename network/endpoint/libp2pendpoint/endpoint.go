@@ -3,9 +3,12 @@ package libp2pendpoint
 import (
 	"context"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
+	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/addrinfo"
@@ -17,15 +20,20 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-msgio/pbio"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
+type DialReportFn func(context.Context, bool)
+
 // TODO: Use sync.Pool to reuse buffers https://pkg.go.dev/sync#Pool
 
 type Libp2pEndpoint struct {
-	host    host.Host
-	protoID protocol.ID
+	ctx          context.Context
+	host         host.Host
+	sched        scheduler.Scheduler
+	serverProtos map[address.ProtocolID]endpoint.RequestHandlerFn
 
 	// peer filters to be applied before adding peer to peerstore
 
@@ -33,12 +41,18 @@ type Libp2pEndpoint struct {
 	readers sync.Pool
 }
 
-func NewMessageEndpoint(host host.Host, proto protocol.ID) *Libp2pEndpoint {
+var _ endpoint.NetworkedEndpoint = (*Libp2pEndpoint)(nil)
+var _ endpoint.ServerEndpoint = (*Libp2pEndpoint)(nil)
+
+func NewMessageEndpoint(ctx context.Context, host host.Host,
+	sched scheduler.Scheduler) *Libp2pEndpoint {
 	return &Libp2pEndpoint{
-		host:    host,
-		protoID: proto,
-		writers: sync.Pool{},
-		readers: sync.Pool{},
+		ctx:          ctx,
+		host:         host,
+		sched:        sched,
+		serverProtos: make(map[address.ProtocolID]endpoint.RequestHandlerFn),
+		writers:      sync.Pool{},
+		readers:      sync.Pool{},
 	}
 }
 
@@ -49,12 +63,12 @@ func getPeerID(id address.NodeID) peerid.PeerID {
 	panic("invalid peer id")
 }
 
-func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context, id address.NodeID, reportFn endpoint.DialReportFn) {
+func (msgEndpoint *Libp2pEndpoint) AsyncDialAndReport(ctx context.Context,
+	id address.NodeID, reportFn DialReportFn) {
 	p := getPeerID(id)
 	go func() {
-		ctx, span := util.StartSpan(ctx, "Libp2pEndpoint.AsyncDialAndReport", trace.WithAttributes(
-			attribute.String("PeerID", p.String()),
-		))
+		ctx, span := util.StartSpan(ctx, "Libp2pEndpoint.AsyncDialAndReport",
+			trace.WithAttributes(attribute.String("PeerID", p.String())))
 		defer span.End()
 
 		success := true
@@ -116,7 +130,8 @@ func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ctx context.Context,
 	return nil
 }
 
-func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n address.NodeID, req message.MinKadMessage,
+func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context,
+	protoID address.ProtocolID, n address.NodeID, req message.MinKadMessage,
 	resp message.MinKadMessage, responseHandlerFn endpoint.ResponseHandlerFn) {
 	go func() {
 		ctx, span := util.StartSpan(context.Background(), "Libp2pEndpoint.SendRequestHandleResponse", trace.WithAttributes(
@@ -152,7 +167,7 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n addres
 		}
 
 		var s network.Stream
-		s, err = e.host.NewStream(ctx, p.ID, e.protoID)
+		s, err = e.host.NewStream(ctx, p.ID, protocol.ID(protoID))
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("where", "stream creation")))
 			responseHandlerFn(ctx, nil, err)
@@ -179,7 +194,8 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context, n addres
 	}()
 }
 
-func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.NodeID, req message.MinKadMessage,
+func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context,
+	protoID address.ProtocolID, id address.NodeID, req message.MinKadMessage,
 	resp message.MinKadMessage) error {
 
 	protoReq, ok := req.(message.ProtoKadRequestMessage)
@@ -198,7 +214,7 @@ func (msgEndpoint *Libp2pEndpoint) SendRequest(ctx context.Context, id address.N
 	))
 	defer span.End()
 
-	s, err := msgEndpoint.host.NewStream(ctx, p.ID, msgEndpoint.protoID)
+	s, err := msgEndpoint.host.NewStream(ctx, p.ID, protocol.ID(protoID))
 	if err != nil {
 		span.RecordError(err, trace.WithAttributes(attribute.String("where", "stream creation")))
 		return err
@@ -239,4 +255,65 @@ func (e *Libp2pEndpoint) NetworkAddress(n address.NodeID) (address.NetworkAddres
 		return nil, errors.New("invalid peer.ID")
 	}
 	return &addrinfo.AddrInfo{AddrInfo: e.host.Peerstore().PeerInfo(p.ID)}, nil
+}
+
+func (e *Libp2pEndpoint) AddRequestHandler(protoID address.ProtocolID,
+	reqHandler endpoint.RequestHandlerFn) {
+
+	// when a new request comes in, we need to queue it
+	streamHandler := func(s network.Stream) {
+		e.sched.EnqueueAction(e.ctx, basicaction.BasicAction(func(ctx context.Context) {
+			ctx, span := util.StartSpan(ctx, "Libp2pEndpoint.AddRequestHandler",
+				trace.WithAttributes(
+					attribute.String("PeerID", s.Conn().RemotePeer().String()),
+				))
+			defer span.End()
+			defer s.Close()
+
+			// create a protobuf reader and writer
+			r := pbio.NewDelimitedReader(s, network.MessageSizeMax)
+			w := pbio.NewDelimitedWriter(s)
+
+			for {
+				// read a message from the stream
+				var req message.ProtoKadMessage
+				err := r.ReadMsg(req)
+				if err != nil {
+					if err == io.EOF {
+						// stream EOF, all done
+						return
+					}
+					span.RecordError(err)
+					return
+				}
+
+				requester := peerid.NewPeerID(s.Conn().RemotePeer())
+				resp, err := reqHandler(ctx, requester, req)
+				if err != nil {
+					span.RecordError(err)
+					return
+				}
+
+				protoResp, ok := resp.(message.ProtoKadMessage)
+				if !ok {
+					err = errors.New("Libp2pEndpoint requires ProtoKadMessage")
+					span.RecordError(err)
+					return
+				}
+
+				// write the response to the stream
+				err = w.WriteMsg(protoResp)
+				if err != nil {
+					span.RecordError(err)
+					return
+				}
+			}
+		}))
+
+	}
+	e.host.SetStreamHandler(protocol.ID(protoID), streamHandler)
+}
+
+func (e *Libp2pEndpoint) RemoveRequestHandler(protoID address.ProtocolID) {
+	e.host.RemoveStreamHandler(protocol.ID(protoID))
 }

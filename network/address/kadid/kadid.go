@@ -9,6 +9,12 @@ type KadID struct {
 	key.KadKey
 }
 
+var _ address.NodeID = (*KadID)(nil)
+
+func NewKadID(k key.KadKey) *KadID {
+	return &KadID{k}
+}
+
 func (k KadID) Key() key.KadKey {
 	return k.KadKey
 }

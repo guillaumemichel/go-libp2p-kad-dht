@@ -31,7 +31,7 @@ func FindPeer(ctx context.Context) {
 	defer span.End()
 
 	clk := clock.New()
-	sched := simplescheduler.NewSimpleScheduler(ctx, clk)
+	sched := simplescheduler.NewSimpleScheduler(clk)
 
 	h, err := tutil.Libp2pHost(ctx, "8888")
 	if err != nil {
@@ -42,7 +42,7 @@ func FindPeer(ctx context.Context) {
 	kadid := pid.Key()
 
 	rt := simplert.NewSimpleRT(kadid, 20)
-	msgEndpoint := libp2pendpoint.NewMessageEndpoint(h, protocolID)
+	msgEndpoint := libp2pendpoint.NewMessageEndpoint(ctx, h, sched)
 
 	friend, err := peer.Decode("12D3KooWGjgvfDkpuVAoNhd7PRRvMTEG4ZgzHBFURqDe1mqEzAMS")
 	if err != nil {
@@ -64,7 +64,7 @@ func FindPeer(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	targetID := peerid.PeerID{ID: target}
+	targetID := peerid.NewPeerID(target)
 
 	req := ipfskadv1.FindPeerRequest(targetID)
 	var resp message.ProtoKadResponseMessage = &ipfskadv1.Message{}
@@ -97,7 +97,7 @@ func FindPeer(ctx context.Context) {
 		return nil
 	}
 
-	simplequery.NewSimpleQuery(ctx, targetID.Key(), req, resp, 1, 5*time.Second,
+	simplequery.NewSimpleQuery(ctx, targetID.Key(), address.ProtocolID(protocolID), req, resp, 1, 5*time.Second,
 		msgEndpoint, rt, sched, handleResultsFn)
 
 	for i := 0; i < 1000 && !endCond; i++ {

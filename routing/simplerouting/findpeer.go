@@ -32,7 +32,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 		return peer.AddrInfo{}, err
 	}
 
-	pid := peerid.PeerID{ID: p}
+	pid := peerid.NewPeerID(p)
 
 	// Check if were already connected to them
 	targetConnectedness := r.msgEndpoint.Connectedness(pid)
@@ -53,7 +53,7 @@ func (r *SimpleRouting) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo,
 	defer cancel()
 
 	// create the query and add appropriate events to the event queue
-	sq.NewSimpleQuery(ctx, kadid, req, resp, r.queryConcurrency, r.queryTimeout,
+	sq.NewSimpleQuery(ctx, kadid, r.protoID, req, resp, r.queryConcurrency, r.queryTimeout,
 		r.msgEndpoint, r.rt, r.sched, handleResultsFn)
 
 	// only one dial runs at a time to ensure sequentiality

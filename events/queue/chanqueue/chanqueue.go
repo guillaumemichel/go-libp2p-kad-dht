@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
+	"github.com/libp2p/go-libp2p-kad-dht/events/queue"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 )
 
@@ -13,11 +14,10 @@ type ChanQueue struct {
 	queue chan action.Action
 }
 
-// NewChanQueue creates a new queue
-func NewChanQueue(ctx context.Context, capacity int) *ChanQueue {
-	_, span := util.StartSpan(ctx, "NewChanQueue")
-	defer span.End()
+var _ queue.EventQueueWithEmpty = (*ChanQueue)(nil)
 
+// NewChanQueue creates a new queue
+func NewChanQueue(capacity int) *ChanQueue {
 	return &ChanQueue{
 		queue: make(chan action.Action, capacity),
 	}

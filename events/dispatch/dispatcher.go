@@ -15,7 +15,7 @@ type StreamID uint64
 // Dispatcher is an interface for dispatching actions to peers' schedulers.
 type Dispatcher interface {
 	// AddPeer adds a peer to the dispatcher.
-	AddPeer(address.NodeID, scheduler.Scheduler, *simserver.SimServer)
+	AddPeer(address.NodeID, scheduler.Scheduler, simserver.SimServer)
 	// RemovePeer removes a peer from the dispatcher.
 	RemovePeer(id address.NodeID)
 

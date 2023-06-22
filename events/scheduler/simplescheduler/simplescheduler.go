@@ -10,6 +10,7 @@ import (
 	sp "github.com/libp2p/go-libp2p-kad-dht/events/planner/simpleplanner"
 	"github.com/libp2p/go-libp2p-kad-dht/events/queue"
 	"github.com/libp2p/go-libp2p-kad-dht/events/queue/chanqueue"
+	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 )
 
 // SimpleScheduler is a simple implementation of the Scheduler interface. It
@@ -21,12 +22,14 @@ type SimpleScheduler struct {
 	planner planner.AwareActionPlanner
 }
 
+var _ scheduler.AwareScheduler = (*SimpleScheduler)(nil)
+
 // NewSimpleScheduler creates a new SimpleScheduler.
-func NewSimpleScheduler(ctx context.Context, clk clock.Clock) *SimpleScheduler {
+func NewSimpleScheduler(clk clock.Clock) *SimpleScheduler {
 	return &SimpleScheduler{
 		clk: clk,
 
-		queue:   chanqueue.NewChanQueue(ctx, 100),
+		queue:   chanqueue.NewChanQueue(100),
 		planner: sp.NewSimplePlanner(clk),
 	}
 }

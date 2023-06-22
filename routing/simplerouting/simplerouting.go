@@ -5,6 +5,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 )
@@ -12,6 +13,7 @@ import (
 type SimpleRouting struct {
 	msgEndpoint *libp2pendpoint.Libp2pEndpoint
 	rt          routingtable.RoutingTable
+	protoID     address.ProtocolID
 
 	sched scheduler.Scheduler
 
@@ -24,7 +26,7 @@ type SimpleRouting struct {
 }
 
 func NewSimpleRouting(self key.KadKey, msgEndpoint *libp2pendpoint.Libp2pEndpoint,
-	rt routingtable.RoutingTable, sched scheduler.Scheduler,
+	rt routingtable.RoutingTable, sched scheduler.Scheduler, proto address.ProtocolID,
 	options ...Option) (*SimpleRouting, error) {
 
 	var cfg Config
@@ -38,6 +40,7 @@ func NewSimpleRouting(self key.KadKey, msgEndpoint *libp2pendpoint.Libp2pEndpoin
 	return &SimpleRouting{
 		msgEndpoint:           msgEndpoint,
 		rt:                    rt,
+		protoID:               proto,
 		sched:                 sched,
 		queryConcurrency:      cfg.QueryConcurrency,
 		queryTimeout:          cfg.QueryTimeout,

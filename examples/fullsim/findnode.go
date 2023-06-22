@@ -57,12 +57,12 @@ func findNode(ctx context.Context) {
 	rts := make([]*simplert.SimpleRT, len(ids))
 	eps := make([]*fakeendpoint.FakeEndpoint, len(ids))
 	schedulers := make([]*ss.SimpleScheduler, len(ids))
-	servers := make([]*kadsimserver.KadSimServer, len(ids))
+	servers := make([]*kadsimserver.SimServer, len(ids))
 
 	for i := 0; i < len(ids); i++ {
 		rts[i] = simplert.NewSimpleRT(ids[i].KadKey, 2)
 		eps[i] = fakeendpoint.NewFakeEndpoint(ids[i], dispatcher)
-		schedulers[i] = ss.NewSimpleScheduler(ctx, clk)
+		schedulers[i] = ss.NewSimpleScheduler(clk)
 		servers[i] = kadsimserver.NewKadSimServer(rts[i], eps[i])
 		dispatcher.AddPeer(ids[i], schedulers[i], servers[i])
 	}
@@ -103,7 +103,7 @@ func findNode(ctx context.Context) {
 		return nil
 	}
 
-	sq.NewSimpleQuery(ctx, ids[3].Key(), req, resp, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
+	sq.NewSimpleQuery(ctx, ids[3].Key(), "", req, resp, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
 
 	dispatcher.DispatchLoop(ctx)
 

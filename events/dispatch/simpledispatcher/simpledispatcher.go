@@ -9,6 +9,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
+	"github.com/libp2p/go-libp2p-kad-dht/events/dispatch"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
@@ -23,6 +24,8 @@ type SimpleDispatcher struct {
 	servers   map[string]simserver.SimServer
 	latencies map[string]map[string]time.Duration
 }
+
+var _ dispatch.LoopDispatcher = (*SimpleDispatcher)(nil)
 
 // NewSimpleDispatcher creates a new SimpleDispatcher. The provided mock clock
 // must be the same as the one used by the schedulers.

@@ -21,7 +21,7 @@ func TestFindPeerRequest(t *testing.T) {
 	p, err := peer.Decode("12D3KooWH6Qd1EW75ANiCtYfD51D6M7MiZwLQ4g8wEBpoEUnVYNz")
 	require.NoError(t, err)
 
-	pid := peerid.PeerID{ID: p}
+	pid := peerid.NewPeerID(p)
 	msg := FindPeerRequest(pid)
 
 	require.Equal(t, msg.GetKey(), []byte(p))

@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/addrinfo"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -17,7 +18,9 @@ var (
 	ErrNoValidAddresses = errors.New("no valid addresses")
 )
 
-func FindPeerRequest(p peerid.PeerID) *Message {
+var _ message.ProtoKadResponseMessage = (*Message)(nil)
+
+func FindPeerRequest(p *peerid.PeerID) *Message {
 	marshalledPeerid, _ := p.MarshalBinary()
 	return &Message{
 		Type: Message_FIND_NODE,

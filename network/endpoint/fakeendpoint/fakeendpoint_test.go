@@ -50,7 +50,7 @@ func TestFakeEndpoint(t *testing.T) {
 		require.NoError(t, err)
 		runCheck = true
 	}
-	fakeEndpoint.SendRequestHandleResponse(ctx, node0, req, resp, respHandler)
+	fakeEndpoint.SendRequestHandleResponse(ctx, "", node0, req, resp, respHandler)
 	require.Equal(t, endpoint.ErrUnknownPeer, err)
 
 	err = fakeEndpoint.MaybeAddToPeerstore(ctx, node0, peerstoreTTL)
@@ -63,20 +63,20 @@ func TestFakeEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, node0, na)
 
-	fakeEndpoint.SendRequestHandleResponse(ctx, node0, req, resp, respHandler)
+	fakeEndpoint.SendRequestHandleResponse(ctx, "", node0, req, resp, respHandler)
 
-	sched := simplescheduler.NewSimpleScheduler(ctx, clk)
+	sched := simplescheduler.NewSimpleScheduler(clk)
 	rt := simplert.NewSimpleRT(kadid.Key(), 2)
 	serv := kadsimserver.NewKadSimServer(rt, fakeEndpoint)
 	dispatcher.AddPeer(kadid, sched, serv)
 
 	fakeEndpoint0 := NewFakeEndpoint(node0, dispatcher)
-	sched0 := simplescheduler.NewSimpleScheduler(ctx, clk)
+	sched0 := simplescheduler.NewSimpleScheduler(clk)
 	rt0 := simplert.NewSimpleRT(node0.Key(), 2)
 	serv0 := kadsimserver.NewKadSimServer(rt0, fakeEndpoint0)
 	dispatcher.AddPeer(node0, sched0, serv0)
 
-	fakeEndpoint.SendRequestHandleResponse(ctx, node0, req, resp, respHandler)
+	fakeEndpoint.SendRequestHandleResponse(ctx, "", node0, req, resp, respHandler)
 
 	require.True(t, sched0.RunOne(ctx))
 	require.False(t, sched0.RunOne(ctx))

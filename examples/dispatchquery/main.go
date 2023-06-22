@@ -26,7 +26,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
-	"github.com/libp2p/go-libp2p-kad-dht/server/simipfsserver"
+	"github.com/libp2p/go-libp2p-kad-dht/server/simserver/ipfssimserver"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -59,8 +59,8 @@ func queryTest(ctx context.Context) {
 		AddrInfo: peer.AddrInfo{ID: selfA.ID, Addrs: []multiaddr.Multiaddr{addrA}}}
 	rtA := simplert.NewSimpleRT(selfA.Key(), 2)
 	endpointA := fakeendpoint.NewFakeEndpoint(selfA, dispatcher)
-	schedA := ss.NewSimpleScheduler(ctx, clk)
-	servA := simipfsserver.NewSimServer(rtA, endpointA)
+	schedA := ss.NewSimpleScheduler(clk)
+	servA := ipfssimserver.NewIpfsSimServer(rtA, endpointA)
 	dispatcher.AddPeer(selfA, schedA, servA)
 
 	// create peer B
@@ -74,8 +74,8 @@ func queryTest(ctx context.Context) {
 		AddrInfo: peer.AddrInfo{ID: selfB.ID, Addrs: []multiaddr.Multiaddr{addrB}}}
 	rtB := simplert.NewSimpleRT(selfB.Key(), 2)
 	endpointB := fakeendpoint.NewFakeEndpoint(selfB, dispatcher)
-	schedB := ss.NewSimpleScheduler(ctx, clk)
-	servB := simipfsserver.NewSimServer(rtB, endpointB)
+	schedB := ss.NewSimpleScheduler(clk)
+	servB := ipfssimserver.NewIpfsSimServer(rtB, endpointB)
 	dispatcher.AddPeer(selfB, schedB, servB)
 
 	// create peer C
@@ -89,8 +89,8 @@ func queryTest(ctx context.Context) {
 		AddrInfo: peer.AddrInfo{ID: selfC.ID, Addrs: []multiaddr.Multiaddr{addrC}}}
 	rtC := simplert.NewSimpleRT(selfC.Key(), 2)
 	endpointC := fakeendpoint.NewFakeEndpoint(selfC, dispatcher)
-	schedC := ss.NewSimpleScheduler(ctx, clk)
-	servC := simipfsserver.NewSimServer(rtC, endpointC)
+	schedC := ss.NewSimpleScheduler(clk)
+	servC := ipfssimserver.NewIpfsSimServer(rtC, endpointC)
 	dispatcher.AddPeer(selfC, schedC, servC)
 
 	// connect peer A and B
@@ -107,7 +107,7 @@ func queryTest(ctx context.Context) {
 
 	// create find peer request
 	_, bin, _ := multibase.Decode(targetBytesID)
-	target := peerid.PeerID{ID: peer.ID(bin)}
+	target := peerid.NewPeerID(peer.ID(bin))
 	req := ipfskadv1.FindPeerRequest(target)
 	resp := &ipfskadv1.Message{}
 
@@ -116,7 +116,7 @@ func queryTest(ctx context.Context) {
 		fmt.Println(resp.CloserNodes())
 		return nil
 	}
-	sq.NewSimpleQuery(ctx, target.Key(), req, resp, 1, time.Second, endpointA,
+	sq.NewSimpleQuery(ctx, target.Key(), "", req, resp, 1, time.Second, endpointA,
 		rtA, schedA, handleResp)
 
 	// run simulation

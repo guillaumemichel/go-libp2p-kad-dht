@@ -17,7 +17,7 @@ func TestChanQueue(t *testing.T) {
 		events[i] = ta.IntAction(i)
 	}
 
-	q := NewChanQueue(ctx, nEvents)
+	q := NewChanQueue(nEvents)
 	if q.Size() != 0 {
 		t.Errorf("Expected size 0, got %d", q.Size())
 	}
@@ -61,7 +61,7 @@ func TestChanQueue(t *testing.T) {
 func TestChanQueueMaxCapacity(t *testing.T) {
 	ctx := context.Background()
 
-	q := NewChanQueue(context.Background(), 1)
+	q := NewChanQueue(1)
 
 	q.Enqueue(ctx, ta.IntAction(1))
 	require.Equal(t, uint(1), q.Size())

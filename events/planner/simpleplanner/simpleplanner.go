@@ -16,11 +16,15 @@ type SimplePlanner struct {
 	NextAction *SimpleTimedAction
 }
 
+var _ planner.AwareActionPlanner = (*SimplePlanner)(nil)
+
 type SimpleTimedAction struct {
 	action action.Action
 	time   time.Time
 	next   *SimpleTimedAction
 }
+
+var _ planner.PlannedAction = (*SimpleTimedAction)(nil)
 
 func (a *SimpleTimedAction) Time() time.Time {
 	return a.time

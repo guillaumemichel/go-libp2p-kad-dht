@@ -1,4 +1,4 @@
-package simipfsserver
+package ipfssimserver
 
 import (
 	"context"
@@ -19,20 +19,29 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	peerstoreTTL  = 10 * time.Minute
-	nClosestPeers = 20
-)
+var _ simserver.SimServer = (*SimServer)(nil)
 
 type SimServer struct {
 	rt       routingtable.RoutingTable
 	endpoint endpoint.NetworkedEndpoint
+
+	peerstoreTTL              time.Duration
+	numberOfCloserPeersToSend int
 }
 
-func NewSimServer(rt routingtable.RoutingTable, endpoint endpoint.NetworkedEndpoint) *SimServer {
+func NewIpfsSimServer(rt routingtable.RoutingTable, endpoint endpoint.NetworkedEndpoint,
+	options ...Option) *SimServer {
+
+	var cfg Config
+	if err := cfg.Apply(append([]Option{DefaultConfig}, options...)...); err != nil {
+		return nil
+	}
+
 	return &SimServer{
-		rt:       rt,
-		endpoint: endpoint,
+		rt:                        rt,
+		endpoint:                  endpoint,
+		peerstoreTTL:              cfg.PeerstoreTTL,
+		numberOfCloserPeersToSend: cfg.NumberOfCloserPeersToSend,
 	}
 }
 
@@ -45,7 +54,7 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 		return
 	}
 
-	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, peerstoreTTL)
+	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, s.peerstoreTTL)
 
 	p := peer.ID("")
 	if p.UnmarshalBinary(req.GetKey()) != nil {
@@ -59,7 +68,7 @@ func (s *SimServer) HandleFindNodeRequest(ctx context.Context, rpeer address.Net
 		attribute.Stringer("Target", p)))
 	defer span.End()
 
-	peers, err := s.rt.NearestPeers(ctx, pid.Key(), nClosestPeers)
+	peers, err := s.rt.NearestPeers(ctx, pid.Key(), s.numberOfCloserPeersToSend)
 	if err != nil {
 		span.RecordError(err)
 		return

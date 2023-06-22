@@ -25,7 +25,7 @@ func TestSimpleDispatcher(t *testing.T) {
 	scheds := make(map[address.NodeID]*ss.SimpleScheduler)
 	servers := make(map[address.NodeID]simserver.SimServer)
 	for _, id := range ids {
-		scheds[id] = ss.NewSimpleScheduler(ctx, clk)
+		scheds[id] = ss.NewSimpleScheduler(clk)
 		servers[id] = nil
 	}
 
@@ -144,7 +144,7 @@ func TestDispatchLoop(t *testing.T) {
 		sid.StringID("c"), sid.StringID("d"), sid.StringID("e"), sid.StringID("f")}
 	scheds := make(map[address.NodeID]*ss.SimpleScheduler)
 	for _, id := range ids {
-		scheds[id] = ss.NewSimpleScheduler(ctx, clk)
+		scheds[id] = ss.NewSimpleScheduler(clk)
 	}
 
 	// creating dispatcher and adding peers

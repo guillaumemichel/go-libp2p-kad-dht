@@ -10,6 +10,12 @@ type AddrInfo struct {
 	peer.AddrInfo
 }
 
+var _ address.NetworkAddress = (*AddrInfo)(nil)
+
+func NewAddrInfo(ai peer.AddrInfo) *AddrInfo {
+	return &AddrInfo{ai}
+}
+
 func (ai AddrInfo) NodeID() address.NodeID {
 	return &peerid.PeerID{ID: ai.ID}
 }

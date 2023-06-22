@@ -8,6 +8,7 @@ import (
 
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -23,6 +24,8 @@ type SimpleRT struct {
 	buckets    [][]peerInfo
 	bucketSize int
 }
+
+var _ routingtable.RoutingTable = (*SimpleRT)(nil)
 
 func NewSimpleRT(self key.KadKey, bucketSize int) *SimpleRT {
 	rt := SimpleRT{

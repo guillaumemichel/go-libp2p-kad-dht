@@ -96,6 +96,9 @@ func TestCompare(t *testing.T) {
 				require.Equal(t, int8(1), res)
 			} else {
 				require.Equal(t, int8(0), res)
+				equal, err := keys[i].Equal(keys[j])
+				require.NoError(t, err)
+				require.True(t, equal)
 			}
 		}
 	}

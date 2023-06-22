@@ -16,7 +16,7 @@ func TestSimpleScheduler(t *testing.T) {
 	ctx := context.Background()
 	clk := clock.NewMock()
 
-	sched := NewSimpleScheduler(ctx, clk)
+	sched := NewSimpleScheduler(clk)
 
 	require.Equal(t, clk.Now(), sched.Now())
 

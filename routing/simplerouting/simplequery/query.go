@@ -39,6 +39,7 @@ type SimpleQuery struct {
 	ctx         context.Context
 	done        bool
 	kadid       key.KadKey
+	protoID     address.ProtocolID
 	req         message.MinKadMessage
 	resp        message.MinKadResponseMessage
 	concurrency int
@@ -63,7 +64,7 @@ type SimpleQuery struct {
 // reader, and the parameters to these events are determined by the query's
 // parameters. The query keeps track of the closest known peers to the target
 // key, and the peers that have been queried so far.
-func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMessage,
+func NewSimpleQuery(ctx context.Context, kadid key.KadKey, proto address.ProtocolID, req message.MinKadMessage,
 	resp message.MinKadResponseMessage, concurrency int, timeout time.Duration,
 	msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
 	sched scheduler.Scheduler, handleResultFn HandleResultFn) *SimpleQuery {
@@ -86,6 +87,7 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, req message.MinKadMes
 		req:              req,
 		resp:             resp,
 		kadid:            kadid,
+		protoID:          proto,
 		concurrency:      concurrency,
 		timeout:          timeout,
 		msgEndpoint:      msgEndpoint,
@@ -178,7 +180,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	}
 
 	// send request
-	q.msgEndpoint.SendRequestHandleResponse(ctx, id, q.req, q.resp, handleResp)
+	q.msgEndpoint.SendRequestHandleResponse(ctx, q.protoID, id, q.req, q.resp, handleResp)
 }
 
 func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, resp message.MinKadResponseMessage) {
