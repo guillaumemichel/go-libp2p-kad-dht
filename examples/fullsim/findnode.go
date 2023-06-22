@@ -18,7 +18,10 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/server/basicserver"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 
+	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
+	"github.com/libp2p/go-libp2p-kad-dht/events/simulator"
+	"github.com/libp2p/go-libp2p-kad-dht/events/simulator/litesimulator"
 )
 
 const (
@@ -58,14 +61,14 @@ func findNode(ctx context.Context) {
 
 	rts := make([]*simplert.SimpleRT, len(ids))
 	eps := make([]*fakeendpoint.FakeEndpoint, len(ids))
-	schedulers := make([]*ss.SimpleScheduler, len(ids))
+	schedulers := make([]scheduler.AwareScheduler, len(ids))
 	servers := make([]server.Server, len(ids))
 
 	for i := 0; i < len(ids); i++ {
 		rts[i] = simplert.NewSimpleRT(ids[i].KadKey, 2)
 		schedulers[i] = ss.NewSimpleScheduler(clk)
 		eps[i] = fakeendpoint.NewFakeEndpoint(ids[i], schedulers[i], router)
-		servers[i] = basicserver.NewBasicServer(rts[i], eps[i], nil)
+		servers[i] = basicserver.NewBasicServer(rts[i], eps[i])
 		eps[i].AddRequestHandler(protoID, servers[i].HandleRequest)
 		//servers[i] = kadsimserver.NewKadSimServer(rts[i], eps[i])
 		//dispatcher.AddPeer(ids[i], schedulers[i], servers[i])
@@ -109,6 +112,7 @@ func findNode(ctx context.Context) {
 
 	sq.NewSimpleQuery(ctx, ids[3].Key(), protoID, req, resp, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
 
-	dispatcher.DispatchLoop(ctx)
-
+	sim := litesimulator.NewLiteSimulator(clk)
+	simulator.AddPeers(sim, schedulers...)
+	sim.Run(ctx)
 }

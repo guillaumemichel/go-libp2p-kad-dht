@@ -17,6 +17,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
+	"github.com/libp2p/go-libp2p-kad-dht/events/simulator"
+	"github.com/libp2p/go-libp2p-kad-dht/events/simulator/litesimulator"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/addrinfo"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
@@ -116,11 +118,14 @@ func queryTest(ctx context.Context) {
 		fmt.Println(resp.CloserNodes())
 		return nil
 	}
-	sq.NewSimpleQuery(ctx, target.Key(), "", req, resp, 1, time.Second, endpointA,
+	sq.NewSimpleQuery(ctx, target.Key(), protoID, req, resp, 1, time.Second, endpointA,
 		rtA, schedA, handleResp)
 
+	// create simulator
+	sim := litesimulator.NewLiteSimulator(clk)
+	simulator.AddPeers(sim, schedA, schedB, schedC)
 	// run simulation
-	dispatcher.DispatchLoop(ctx)
+	sim.Run(ctx)
 }
 
 // tracerProvider returns an OpenTelemetry TracerProvider configured to use

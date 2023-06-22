@@ -106,6 +106,11 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context,
 	)
 	defer span.End()
 
+	if handleResp == nil {
+		span.RecordError(fmt.Errorf("handleResp is nil"))
+		return
+	}
+
 	if err := e.DialPeer(ctx, id); err != nil {
 		span.RecordError(err)
 		handleResp(ctx, nil, err)
@@ -131,11 +136,12 @@ func (e *FakeEndpoint) SendRequestHandleResponse(ctx context.Context,
 				defer span.End()
 
 				handleFn, ok := e.streamFollowup[sid]
-				if !ok {
-					span.RecordError(fmt.Errorf("no followup for stream %d", sid))
-				}
 				delete(e.streamFollowup, sid)
 				delete(e.streamTimeout, sid)
+				if !ok {
+					span.RecordError(fmt.Errorf("no followup for stream %d", sid))
+					return
+				}
 				handleFn(ctx, nil, endpoint.ErrTimeout)
 			}))
 	}
@@ -171,6 +177,11 @@ func (e *FakeEndpoint) HandleMessage(ctx context.Context, id address.NodeID,
 
 	if followup, ok := e.streamFollowup[sid]; ok {
 		span.AddEvent("Response to previous request")
+
+		timeout, ok := e.streamTimeout[sid]
+		if ok {
+			e.sched.RemovePlannedAction(ctx, timeout)
+		}
 		// remove stream id from endpoint
 		delete(e.streamFollowup, sid)
 		delete(e.streamTimeout, sid)
