@@ -3,11 +3,14 @@ package libp2pendpoint
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
+	ba "github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
+	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
@@ -30,10 +33,9 @@ type DialReportFn func(context.Context, bool)
 // TODO: Use sync.Pool to reuse buffers https://pkg.go.dev/sync#Pool
 
 type Libp2pEndpoint struct {
-	ctx          context.Context
-	host         host.Host
-	sched        scheduler.Scheduler
-	serverProtos map[address.ProtocolID]endpoint.RequestHandlerFn
+	ctx   context.Context
+	host  host.Host
+	sched scheduler.Scheduler
 
 	// peer filters to be applied before adding peer to peerstore
 
@@ -47,12 +49,11 @@ var _ endpoint.ServerEndpoint = (*Libp2pEndpoint)(nil)
 func NewMessageEndpoint(ctx context.Context, host host.Host,
 	sched scheduler.Scheduler) *Libp2pEndpoint {
 	return &Libp2pEndpoint{
-		ctx:          ctx,
-		host:         host,
-		sched:        sched,
-		serverProtos: make(map[address.ProtocolID]endpoint.RequestHandlerFn),
-		writers:      sync.Pool{},
-		readers:      sync.Pool{},
+		ctx:     ctx,
+		host:    host,
+		sched:   sched,
+		writers: sync.Pool{},
+		readers: sync.Pool{},
 	}
 }
 
@@ -132,7 +133,8 @@ func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ctx context.Context,
 
 func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context,
 	protoID address.ProtocolID, n address.NodeID, req message.MinKadMessage,
-	resp message.MinKadMessage, responseHandlerFn endpoint.ResponseHandlerFn) {
+	resp message.MinKadMessage, timeout time.Duration,
+	responseHandlerFn endpoint.ResponseHandlerFn) {
 	go func() {
 		ctx, span := util.StartSpan(context.Background(), "Libp2pEndpoint.SendRequestHandleResponse", trace.WithAttributes(
 			attribute.String("PeerID", n.String()),
@@ -182,11 +184,40 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context,
 			return
 		}
 
+		var timeoutOccured bool
+		var timeoutLock sync.Mutex
+		var timeoutEvent planner.PlannedAction
+		// handle timeout
+
+		if timeout != 0 {
+			timeoutEvent = scheduler.ScheduleActionIn(ctx, e.sched, timeout,
+				ba.BasicAction(func(ctx context.Context) {
+					timeoutLock.Lock()
+					timeoutOccured = true
+					timeoutLock.Unlock()
+
+					responseHandlerFn(ctx, nil, endpoint.ErrTimeout)
+				}))
+		}
+
 		err = ReadMsg(s, protoResp)
 		if err != nil {
 			span.RecordError(err, trace.WithAttributes(attribute.String("where", "read message")))
 			responseHandlerFn(ctx, protoResp, err)
 			return
+		}
+		if timeout != 0 {
+			// remove timeout if not too late
+			e.sched.RemovePlannedAction(ctx, timeoutEvent)
+
+			timeoutLock.Lock()
+			tooLate := timeoutOccured
+			timeoutLock.Unlock()
+
+			if tooLate {
+				span.RecordError(fmt.Errorf("received response after timeout"))
+				return
+			}
 		}
 
 		span.AddEvent("response received")

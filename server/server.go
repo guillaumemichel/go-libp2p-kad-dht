@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
-	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 )
 
@@ -13,4 +12,4 @@ type Server interface {
 		message.MinKadMessage) (message.MinKadMessage, error)
 }
 
-var _ endpoint.RequestHandlerFn = (Server)(nil).HandleRequest
+//var _ endpoint.RequestHandlerFn = (Server)(nil).HandleRequest

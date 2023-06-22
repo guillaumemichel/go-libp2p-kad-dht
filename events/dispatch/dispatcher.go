@@ -7,20 +7,20 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
+	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
 )
-
-type StreamID uint64
 
 // Dispatcher is an interface for dispatching actions to peers' schedulers.
 type Dispatcher interface {
 	// AddPeer adds a peer to the dispatcher.
-	AddPeer(address.NodeID, scheduler.Scheduler, simserver.SimServer)
+	AddPeer(address.NodeID, scheduler.Scheduler, simserver.SimServer, endpoint.SimEndpoint)
 	// RemovePeer removes a peer from the dispatcher.
 	RemovePeer(id address.NodeID)
 
-	// DispatchTo immediately dispatches an action to a peer.
-	DispatchTo(context.Context, address.NodeID, action.Action)
+	// DispatchMessage immediately dispatches a message to a peer.
+	DispatchMessage(context.Context, address.NodeID, endpoint.StreamID, message.MinKadMessage)
 }
 
 // LatencyDispatcher is an interface for dispatching actions to peers' schedulers
@@ -53,7 +53,7 @@ type DelayLatencyDispatcher interface {
 // LoopDispatcher is an interface for dispatching actions to peers' schedulers.
 // All scheduled actions can be run sequentially using DispatchLoop.
 type LoopDispatcher interface {
-	DelayLatencyDispatcher
+	Dispatcher
 
 	// DispatchLoop runs a loop that dispatches all scheduled actions to peers'
 	// schedulers. It "runs the simulation" of scheduled actions.

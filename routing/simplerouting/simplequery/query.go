@@ -152,19 +152,11 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	}
 	span.AddEvent("peer selected: " + id.String())
 
-	// add timeout to scheduler
-	timeoutAction := scheduler.ScheduleActionIn(ctx, q.sched, q.timeout,
-		ba.BasicAction(func(ctx context.Context) {
-			q.requestError(ctx, id,
-				errors.New("request timeout ("+q.timeout.String()+")"))
-		}))
-
 	// function to be executed when a response is received
 	handleResp := func(ctx context.Context, resp message.MinKadResponseMessage, err error) {
 		ctx, span := util.StartSpan(ctx, "SimpleQuery.handleResp")
 		defer span.End()
 
-		q.sched.RemovePlannedAction(ctx, timeoutAction)
 		if err != nil {
 			span.AddEvent("got error")
 			q.sched.EnqueueAction(ctx, ba.BasicAction(func(ctx context.Context) {
@@ -180,7 +172,7 @@ func (q *SimpleQuery) newRequest(ctx context.Context) {
 	}
 
 	// send request
-	q.msgEndpoint.SendRequestHandleResponse(ctx, q.protoID, id, q.req, q.resp, handleResp)
+	q.msgEndpoint.SendRequestHandleResponse(ctx, q.protoID, id, q.req, q.resp, q.timeout, handleResp)
 }
 
 func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, resp message.MinKadResponseMessage) {

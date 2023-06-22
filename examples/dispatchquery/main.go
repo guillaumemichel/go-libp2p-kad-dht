@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
-	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/addrinfo"
@@ -26,7 +25,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
-	"github.com/libp2p/go-libp2p-kad-dht/server/simserver/ipfssimserver"
+	"github.com/libp2p/go-libp2p-kad-dht/server/basicserver"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -34,6 +33,7 @@ import (
 
 const (
 	peerstoreTTL = 10 * time.Minute
+	protoID      = "/ipfs/kad/1.0.0"
 )
 
 var (
@@ -46,7 +46,7 @@ func queryTest(ctx context.Context) {
 
 	clk := clock.NewMock()
 
-	dispatcher := sd.NewSimpleDispatcher(clk)
+	router := fakeendpoint.NewFakeRouter()
 
 	// create peer A
 	pidA, err := peer.Decode("12BooooALPHA")
@@ -58,10 +58,10 @@ func queryTest(ctx context.Context) {
 	var naddrA address.NetworkAddress = &addrinfo.AddrInfo{
 		AddrInfo: peer.AddrInfo{ID: selfA.ID, Addrs: []multiaddr.Multiaddr{addrA}}}
 	rtA := simplert.NewSimpleRT(selfA.Key(), 2)
-	endpointA := fakeendpoint.NewFakeEndpoint(selfA, dispatcher)
 	schedA := ss.NewSimpleScheduler(clk)
-	servA := ipfssimserver.NewIpfsSimServer(rtA, endpointA)
-	dispatcher.AddPeer(selfA, schedA, servA)
+	endpointA := fakeendpoint.NewFakeEndpoint(selfA, schedA, router)
+	servA := basicserver.NewBasicServer(rtA, endpointA)
+	endpointA.AddRequestHandler(protoID, servA.HandleRequest)
 
 	// create peer B
 	pidB, err := peer.Decode("12BoooooBETA")
@@ -73,10 +73,10 @@ func queryTest(ctx context.Context) {
 	var naddrB address.NetworkAddress = &addrinfo.AddrInfo{
 		AddrInfo: peer.AddrInfo{ID: selfB.ID, Addrs: []multiaddr.Multiaddr{addrB}}}
 	rtB := simplert.NewSimpleRT(selfB.Key(), 2)
-	endpointB := fakeendpoint.NewFakeEndpoint(selfB, dispatcher)
 	schedB := ss.NewSimpleScheduler(clk)
-	servB := ipfssimserver.NewIpfsSimServer(rtB, endpointB)
-	dispatcher.AddPeer(selfB, schedB, servB)
+	endpointB := fakeendpoint.NewFakeEndpoint(selfB, schedB, router)
+	servB := basicserver.NewBasicServer(rtB, endpointB)
+	endpointB.AddRequestHandler(protoID, servB.HandleRequest)
 
 	// create peer C
 	pidC, err := peer.Decode("12BooooGAMMA")
@@ -88,10 +88,10 @@ func queryTest(ctx context.Context) {
 	var naddrC address.NetworkAddress = &addrinfo.AddrInfo{
 		AddrInfo: peer.AddrInfo{ID: selfC.ID, Addrs: []multiaddr.Multiaddr{addrC}}}
 	rtC := simplert.NewSimpleRT(selfC.Key(), 2)
-	endpointC := fakeendpoint.NewFakeEndpoint(selfC, dispatcher)
 	schedC := ss.NewSimpleScheduler(clk)
-	servC := ipfssimserver.NewIpfsSimServer(rtC, endpointC)
-	dispatcher.AddPeer(selfC, schedC, servC)
+	endpointC := fakeendpoint.NewFakeEndpoint(selfC, schedC, router)
+	servC := basicserver.NewBasicServer(rtC, endpointC)
+	endpointC.AddRequestHandler(protoID, servC.HandleRequest)
 
 	// connect peer A and B
 	endpointA.MaybeAddToPeerstore(ctx, naddrB, peerstoreTTL)

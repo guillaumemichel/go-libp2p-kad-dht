@@ -1,5 +1,6 @@
 package simpledispatcher
 
+/*
 import (
 	"context"
 	"sort"
@@ -12,7 +13,8 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events/dispatch"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
-	"github.com/libp2p/go-libp2p-kad-dht/server/simserver"
+	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -21,7 +23,8 @@ import (
 type SimpleDispatcher struct {
 	clk       *clock.Mock
 	peers     map[string]scheduler.AwareScheduler
-	servers   map[string]simserver.SimServer
+	endpoints map[string]endpoint.SimEndpoint
+	//servers   map[string]simserver.SimServer
 	latencies map[string]map[string]time.Duration
 }
 
@@ -33,19 +36,21 @@ func NewSimpleDispatcher(clk *clock.Mock) *SimpleDispatcher {
 	return &SimpleDispatcher{
 		clk:       clk,
 		peers:     make(map[string]scheduler.AwareScheduler),
-		servers:   make(map[string]simserver.SimServer),
+		endpoints: make(map[string]endpoint.SimEndpoint),
+		//servers:   make(map[string]simserver.SimServer),
 		latencies: make(map[string]map[string]time.Duration),
 	}
 }
 
 // AddPeer adds a peer to the dispatcher. The peer must have an associated
 // scheduler.AwareScheduler, using the same mock clock as the dispatcher.
-func (d *SimpleDispatcher) AddPeer(id address.NodeID, s scheduler.Scheduler, serv simserver.SimServer) {
+func (d *SimpleDispatcher) AddPeer(id address.NodeID, s scheduler.Scheduler, e endpoint.SimEndpoint) {
 	switch s := s.(type) {
 	case scheduler.AwareScheduler:
 		d.peers[id.String()] = s
 	}
-	d.servers[id.String()] = serv
+	//d.servers[id.String()] = serv
+	d.endpoints[id.String()] = e
 }
 
 // RemovePeer removes a peer from the dispatcher.
@@ -55,7 +60,7 @@ func (d *SimpleDispatcher) RemovePeer(id address.NodeID) {
 	for _, l := range d.latencies {
 		delete(l, id.String())
 	}
-	delete(d.servers, id.String())
+	//delete(d.servers, id.String())
 }
 
 // DispatchTo immediately dispatches an action to a peer.
@@ -68,6 +73,10 @@ func (d *SimpleDispatcher) DispatchTo(ctx context.Context, to address.NodeID, a 
 	if s, ok := d.peers[to.String()]; ok {
 		s.EnqueueAction(ctx, a)
 	}
+}
+
+func (d *SimpleDispatcher) DispatchMessage(context.Context, address.NodeID, endpoint.StreamID, message.MinKadMessage) {
+
 }
 
 // Dispatch immediately dispatches an action to a peer. If a latency is set
@@ -207,9 +216,11 @@ func (d *SimpleDispatcher) DispatchLoop(ctx context.Context) {
 	}
 }
 
+/*
 func (d *SimpleDispatcher) Server(n address.NodeID) simserver.SimServer {
 	if serv, ok := d.servers[n.String()]; ok {
 		return serv
 	}
 	return nil
 }
+*/

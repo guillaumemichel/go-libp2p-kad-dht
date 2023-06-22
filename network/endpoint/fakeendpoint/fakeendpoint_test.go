@@ -6,18 +6,19 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
+	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	si "github.com/libp2p/go-libp2p-kad-dht/network/address/stringid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
-	"github.com/libp2p/go-libp2p-kad-dht/server/simserver/kadsimserver"
+	"github.com/libp2p/go-libp2p-kad-dht/server/basicserver"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/stretchr/testify/require"
 )
 
+var protoID = address.ProtocolID("/test/1.0.0")
 var peerstoreTTL = time.Minute
 
 func TestFakeEndpoint(t *testing.T) {
@@ -25,8 +26,12 @@ func TestFakeEndpoint(t *testing.T) {
 	clk := clock.NewMock()
 
 	kadid := si.StringID("self")
-	dispatcher := simpledispatcher.NewSimpleDispatcher(clk)
-	fakeEndpoint := NewFakeEndpoint(kadid, dispatcher)
+
+	router := NewFakeRouter()
+	sched := simplescheduler.NewSimpleScheduler(clk)
+	//rt := simplert.NewSimpleRT(kadid.Key(), 2)
+
+	fakeEndpoint := NewFakeEndpoint(kadid, sched, router)
 
 	b, err := kadid.Key().Equal(fakeEndpoint.KadKey())
 	require.NoError(t, err)
@@ -47,11 +52,11 @@ func TestFakeEndpoint(t *testing.T) {
 
 	var runCheck bool
 	respHandler := func(ctx context.Context, msg message.MinKadResponseMessage, err error) {
-		require.NoError(t, err)
+		require.Equal(t, endpoint.ErrUnknownPeer, err)
 		runCheck = true
 	}
-	fakeEndpoint.SendRequestHandleResponse(ctx, "", node0, req, resp, respHandler)
-	require.Equal(t, endpoint.ErrUnknownPeer, err)
+	fakeEndpoint.SendRequestHandleResponse(ctx, protoID, node0, req, resp, 0, respHandler)
+	require.True(t, runCheck)
 
 	err = fakeEndpoint.MaybeAddToPeerstore(ctx, node0, peerstoreTTL)
 	require.NoError(t, err)
@@ -63,26 +68,28 @@ func TestFakeEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, node0, na)
 
-	fakeEndpoint.SendRequestHandleResponse(ctx, "", node0, req, resp, respHandler)
+	// it will still be an ErrUnknownPeer because we haven't added node0 to the router
+	fakeEndpoint.SendRequestHandleResponse(ctx, protoID, node0, req, resp, 0, respHandler)
 
-	sched := simplescheduler.NewSimpleScheduler(clk)
-	rt := simplert.NewSimpleRT(kadid.Key(), 2)
-	serv := kadsimserver.NewKadSimServer(rt, fakeEndpoint)
-	dispatcher.AddPeer(kadid, sched, serv)
-
-	fakeEndpoint0 := NewFakeEndpoint(node0, dispatcher)
 	sched0 := simplescheduler.NewSimpleScheduler(clk)
+	fakeEndpoint0 := NewFakeEndpoint(node0, sched0, router)
 	rt0 := simplert.NewSimpleRT(node0.Key(), 2)
-	serv0 := kadsimserver.NewKadSimServer(rt0, fakeEndpoint0)
-	dispatcher.AddPeer(node0, sched0, serv0)
+	serv0 := basicserver.NewBasicServer(rt0, fakeEndpoint0)
+	fakeEndpoint0.AddRequestHandler(protoID, serv0.HandleRequest)
 
-	fakeEndpoint.SendRequestHandleResponse(ctx, "", node0, req, resp, respHandler)
+	runCheck = false
+	respHandler = func(ctx context.Context, msg message.MinKadResponseMessage, err error) {
+		require.NoError(t, err)
+		runCheck = true
+	}
+	fakeEndpoint.SendRequestHandleResponse(ctx, protoID, node0, req, resp, 0, respHandler)
 
 	require.True(t, sched0.RunOne(ctx))
 	require.False(t, sched0.RunOne(ctx))
 
 	require.False(t, runCheck)
 
+	require.True(t, sched.RunOne(ctx))
 	require.True(t, sched.RunOne(ctx))
 	require.False(t, sched.RunOne(ctx))
 

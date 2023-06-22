@@ -21,7 +21,7 @@ type Endpoint interface {
 	// SendRequestHandleResponse sends a request to the given peer and handles
 	// the response with the given handler.
 	SendRequestHandleResponse(context.Context, address.ProtocolID, address.NodeID,
-		message.MinKadMessage, message.MinKadMessage, ResponseHandlerFn)
+		message.MinKadMessage, message.MinKadMessage, time.Duration, ResponseHandlerFn)
 
 	// KadKey returns the KadKey of the local node.
 	KadKey() key.KadKey
@@ -41,4 +41,13 @@ type NetworkedEndpoint interface {
 	Endpoint
 	// Connectedness returns the connectedness of the given peer.
 	Connectedness(address.NodeID) network.Connectedness
+}
+
+type StreamID uint64
+
+type SimEndpoint interface {
+	ServerEndpoint
+	// HandleMessage handles a message from the given peer.
+	HandleMessage(context.Context, address.NodeID, address.ProtocolID,
+		StreamID, message.MinKadMessage)
 }

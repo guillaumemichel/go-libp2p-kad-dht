@@ -2,6 +2,7 @@ package simpleplanner
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -14,6 +15,7 @@ type SimplePlanner struct {
 	Clock clock.Clock
 
 	NextAction *SimpleTimedAction
+	lock       sync.Mutex
 }
 
 var _ planner.AwareActionPlanner = (*SimplePlanner)(nil)
@@ -41,6 +43,9 @@ func NewSimplePlanner(clk clock.Clock) *SimplePlanner {
 }
 
 func (p *SimplePlanner) ScheduleAction(ctx context.Context, t time.Time, a action.Action) planner.PlannedAction {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	if p.NextAction == nil {
 		p.NextAction = &SimpleTimedAction{action: a, time: t}
 		return p.NextAction
@@ -59,6 +64,9 @@ func (p *SimplePlanner) ScheduleAction(ctx context.Context, t time.Time, a actio
 }
 
 func (p *SimplePlanner) RemoveAction(ctx context.Context, pa planner.PlannedAction) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	a, ok := pa.(*SimpleTimedAction)
 	if !ok {
 		return
@@ -83,6 +91,9 @@ func (p *SimplePlanner) RemoveAction(ctx context.Context, pa planner.PlannedActi
 }
 
 func (p *SimplePlanner) PopOverdueActions(ctx context.Context) []action.Action {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	var overdue []action.Action
 	now := p.Clock.Now()
 	curr := p.NextAction
@@ -95,6 +106,9 @@ func (p *SimplePlanner) PopOverdueActions(ctx context.Context) []action.Action {
 }
 
 func (p *SimplePlanner) NextActionTime(context.Context) time.Time {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	if p.NextAction == nil {
 		return util.MaxTime
 	}

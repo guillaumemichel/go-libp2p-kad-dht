@@ -14,16 +14,17 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
 	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
-	"github.com/libp2p/go-libp2p-kad-dht/server/simserver/kadsimserver"
+	"github.com/libp2p/go-libp2p-kad-dht/server"
+	"github.com/libp2p/go-libp2p-kad-dht/server/basicserver"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 
-	sd "github.com/libp2p/go-libp2p-kad-dht/events/dispatch/simpledispatcher"
 	ss "github.com/libp2p/go-libp2p-kad-dht/events/scheduler/simplescheduler"
 )
 
 const (
 	keysize      = 32
 	peerstoreTTL = 10 * time.Minute
+	protoID      = address.ProtocolID("/test/1.0.0")
 )
 
 func zeroBytes(n int) []byte {
@@ -40,7 +41,8 @@ func findNode(ctx context.Context) {
 
 	clk := clock.NewMock()
 
-	dispatcher := sd.NewSimpleDispatcher(clk)
+	//dispatcher := sd.NewSimpleDispatcher(clk)
+	router := fakeendpoint.NewFakeRouter()
 
 	nodeCount := 4
 	ids := make([]kadid.KadID, nodeCount)
@@ -57,14 +59,16 @@ func findNode(ctx context.Context) {
 	rts := make([]*simplert.SimpleRT, len(ids))
 	eps := make([]*fakeendpoint.FakeEndpoint, len(ids))
 	schedulers := make([]*ss.SimpleScheduler, len(ids))
-	servers := make([]*kadsimserver.SimServer, len(ids))
+	servers := make([]server.Server, len(ids))
 
 	for i := 0; i < len(ids); i++ {
 		rts[i] = simplert.NewSimpleRT(ids[i].KadKey, 2)
-		eps[i] = fakeendpoint.NewFakeEndpoint(ids[i], dispatcher)
 		schedulers[i] = ss.NewSimpleScheduler(clk)
-		servers[i] = kadsimserver.NewKadSimServer(rts[i], eps[i])
-		dispatcher.AddPeer(ids[i], schedulers[i], servers[i])
+		eps[i] = fakeendpoint.NewFakeEndpoint(ids[i], schedulers[i], router)
+		servers[i] = basicserver.NewBasicServer(rts[i], eps[i], nil)
+		eps[i].AddRequestHandler(protoID, servers[i].HandleRequest)
+		//servers[i] = kadsimserver.NewKadSimServer(rts[i], eps[i])
+		//dispatcher.AddPeer(ids[i], schedulers[i], servers[i])
 	}
 
 	// A connects to B
@@ -103,7 +107,7 @@ func findNode(ctx context.Context) {
 		return nil
 	}
 
-	sq.NewSimpleQuery(ctx, ids[3].Key(), "", req, resp, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
+	sq.NewSimpleQuery(ctx, ids[3].Key(), protoID, req, resp, 1, time.Second, eps[0], rts[0], schedulers[0], handleResFn)
 
 	dispatcher.DispatchLoop(ctx)
 
