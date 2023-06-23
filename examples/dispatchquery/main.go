@@ -114,9 +114,10 @@ func queryTest(ctx context.Context) {
 	resp := &ipfskadv1.Message{}
 
 	// dummy parameters
-	handleResp := func(ctx context.Context, s sq.QueryState, _ address.NodeID, resp message.MinKadResponseMessage) sq.QueryState {
+	handleResp := func(ctx context.Context, s sq.QueryState, _ address.NodeID,
+		resp message.MinKadResponseMessage) (bool, sq.QueryState) {
 		fmt.Println(resp.CloserNodes())
-		return nil
+		return false, nil
 	}
 	sq.NewSimpleQuery(ctx, target.Key(), protoID, req, resp, 1, time.Second, endpointA,
 		rtA, schedA, handleResp)

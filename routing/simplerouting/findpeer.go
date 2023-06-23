@@ -148,7 +148,8 @@ func containsNewAddresses(newAddrs, oldAddrs []multiaddr.Multiaddr) (bool, []mul
 // peer.ID of the result matches the peer.ID we are looking for. If one does,
 // it writes the result to the resultsChan and returns nil
 func getFindPeerHandleResultsFn(p peer.ID, resultsChan chan any) sq.HandleResultFn {
-	return func(ctx context.Context, i sq.QueryState, id address.NodeID, m message.MinKadResponseMessage) sq.QueryState {
+	return func(ctx context.Context, i sq.QueryState, id address.NodeID,
+		m message.MinKadResponseMessage) (bool, sq.QueryState) {
 
 		ctx, span := util.StartSpan(ctx, "SimpleRouting.getFindPeerHandleResultsFn")
 		defer span.End()
@@ -163,13 +164,13 @@ func getFindPeerHandleResultsFn(p peer.ID, resultsChan chan any) sq.HandleResult
 
 				select {
 				case <-ctx.Done():
-					return nil
+					return true, nil
 				case resultsChan <- peerid:
 				}
 
 				break
 			}
 		}
-		return nil
+		return false, nil
 	}
 }

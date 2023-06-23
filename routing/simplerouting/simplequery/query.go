@@ -33,7 +33,7 @@ var (
 
 type QueryState any
 
-type HandleResultFn func(context.Context, QueryState, address.NodeID, message.MinKadResponseMessage) QueryState
+type HandleResultFn func(context.Context, QueryState, address.NodeID, message.MinKadResponseMessage) (bool, QueryState)
 
 type SimpleQuery struct {
 	ctx         context.Context
@@ -221,10 +221,10 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 	q.peerlist.addToPeerlist(newPeerIds)
 
 	var stop bool
-	q.state = q.handleResultFn(ctx, q.state, id, resp)
+	stop, q.state = q.handleResultFn(ctx, q.state, id, resp)
 	if stop {
 		// query is done, don't send any more requests
-		span.AddEvent("query success")
+		span.AddEvent("query over")
 		q.done = true
 		return
 	}

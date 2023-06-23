@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
 	ba "github.com/libp2p/go-libp2p-kad-dht/events/action/basicaction"
 	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
@@ -293,7 +292,7 @@ func (e *Libp2pEndpoint) AddRequestHandler(protoID address.ProtocolID,
 
 	// when a new request comes in, we need to queue it
 	streamHandler := func(s network.Stream) {
-		e.sched.EnqueueAction(e.ctx, basicaction.BasicAction(func(ctx context.Context) {
+		e.sched.EnqueueAction(e.ctx, ba.BasicAction(func(ctx context.Context) {
 			ctx, span := util.StartSpan(ctx, "Libp2pEndpoint.AddRequestHandler",
 				trace.WithAttributes(
 					attribute.String("PeerID", s.Conn().RemotePeer().String()),
