@@ -10,7 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/key"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
-	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
@@ -24,7 +23,7 @@ type FakeEndpoint struct {
 	self  address.NodeID
 	sched scheduler.Scheduler // client
 
-	peerstore      map[string]address.NetworkAddress
+	peerstore      map[string]address.NodeID
 	connStatus     map[string]network.Connectedness
 	serverProtos   map[address.ProtocolID]endpoint.RequestHandlerFn // server
 	streamFollowup map[endpoint.StreamID]endpoint.ResponseHandlerFn // client
@@ -42,14 +41,13 @@ func NewFakeEndpoint(self address.NodeID, sched scheduler.Scheduler, router *Fak
 		sched:        sched,
 		serverProtos: make(map[address.ProtocolID]endpoint.RequestHandlerFn),
 
-		peerstore:  make(map[string]address.NetworkAddress),
+		peerstore:  make(map[string]address.NodeID),
 		connStatus: make(map[string]network.Connectedness),
 
 		streamFollowup: make(map[endpoint.StreamID]endpoint.ResponseHandlerFn),
 		streamTimeout:  make(map[endpoint.StreamID]planner.PlannedAction),
 
 		router: router,
-		//dispatcher: dispatcher,
 	}
 	if router != nil {
 		router.AddPeer(self, e, sched)
@@ -80,8 +78,8 @@ func (e *FakeEndpoint) DialPeer(ctx context.Context, id address.NodeID) error {
 
 // MaybeAddToPeerstore adds the given address to the peerstore. FakeEndpoint
 // doesn't take into account the ttl.
-func (e *FakeEndpoint) MaybeAddToPeerstore(ctx context.Context, na address.NetworkAddress, ttl time.Duration) error {
-	strNodeID := na.NodeID().String()
+func (e *FakeEndpoint) MaybeAddToPeerstore(ctx context.Context, id address.NodeID, ttl time.Duration) error {
+	strNodeID := id.String()
 	_, span := util.StartSpan(ctx, "MaybeAddToPeerstore",
 		trace.WithAttributes(attribute.String("self", e.self.String())),
 		trace.WithAttributes(attribute.String("id", strNodeID)),
@@ -89,7 +87,7 @@ func (e *FakeEndpoint) MaybeAddToPeerstore(ctx context.Context, na address.Netwo
 	defer span.End()
 
 	if _, ok := e.peerstore[strNodeID]; !ok {
-		e.peerstore[strNodeID] = na
+		e.peerstore[strNodeID] = id
 	}
 	if _, ok := e.connStatus[strNodeID]; !ok {
 		e.connStatus[strNodeID] = network.CanConnect
@@ -156,11 +154,11 @@ func (e *FakeEndpoint) Connectedness(id address.NodeID) network.Connectedness {
 	}
 }
 
-func (e *FakeEndpoint) NetworkAddress(id address.NodeID) (address.NetworkAddress, error) {
+func (e *FakeEndpoint) NetworkAddress(id address.NodeID) (address.NodeID, error) {
 	if ai, ok := e.peerstore[id.String()]; ok {
 		return ai, nil
 	}
-	return peerid.PeerID{}, endpoint.ErrUnknownPeer
+	return nil, endpoint.ErrUnknownPeer
 }
 
 func (e *FakeEndpoint) KadKey() key.KadKey {
@@ -171,7 +169,7 @@ func (e *FakeEndpoint) HandleMessage(ctx context.Context, id address.NodeID,
 	protoID address.ProtocolID, sid endpoint.StreamID, msg message.MinKadMessage) {
 
 	_, span := util.StartSpan(ctx, "HandleMessage",
-		trace.WithAttributes(attribute.Stringer("id", id.NodeID()),
+		trace.WithAttributes(attribute.Stringer("id", id),
 			attribute.Int64("StreamID", int64(sid))))
 	defer span.End()
 

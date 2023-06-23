@@ -1,4 +1,4 @@
-package ipfskadv1
+package ipfsv1
 
 import (
 	"errors"
@@ -43,10 +43,10 @@ func (msg *Message) Target() key.KadKey {
 	return peerid.PeerID{ID: p}.Key()
 }
 
-func (msg *Message) CloserNodes() []address.NetworkAddress {
+func (msg *Message) CloserNodes() []address.NodeID {
 	closerPeers := msg.GetCloserPeers()
 	if closerPeers == nil {
-		return []address.NetworkAddress{}
+		return []address.NodeID{}
 	}
 	return ParsePeers(closerPeers)
 }
@@ -63,16 +63,14 @@ func PBPeerToPeerInfo(pbp *Message_Peer) (*addrinfo.AddrInfo, error) {
 		return nil, ErrNoValidAddresses
 	}
 
-	return &addrinfo.AddrInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    peer.ID(pbp.Id),
-			Addrs: addrs,
-		},
-	}, nil
+	return addrinfo.NewAddrInfo(peer.AddrInfo{
+		ID:    peer.ID(pbp.Id),
+		Addrs: addrs,
+	}), nil
 }
 
-func ParsePeers(pbps []*Message_Peer) []address.NetworkAddress {
-	peers := make([]address.NetworkAddress, 0, len(pbps))
+func ParsePeers(pbps []*Message_Peer) []address.NodeID {
+	peers := make([]address.NodeID, 0, len(pbps))
 	for _, p := range pbps {
 		pi, err := PBPeerToPeerInfo(p)
 		if err == nil {
@@ -91,12 +89,12 @@ func NodeIDsToPbPeers(peers []address.NodeID, e endpoint.NetworkedEndpoint) []*M
 	for _, n := range peers {
 		p := n.(*peerid.PeerID)
 
-		na, err := e.NetworkAddress(n)
+		id, err := e.NetworkAddress(n)
 		if err != nil {
 			continue
 		}
 		// convert NetworkAddress to []multiaddr.Multiaddr
-		addrs := na.(*addrinfo.AddrInfo).Addrs
+		addrs := id.(*addrinfo.AddrInfo).Addrs
 		pbAddrs := make([][]byte, len(addrs))
 		// convert multiaddresses to bytes
 		for i, a := range addrs {

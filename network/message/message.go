@@ -18,7 +18,7 @@ type MinKadRequestMessage interface {
 type MinKadResponseMessage interface {
 	MinKadMessage
 
-	CloserNodes() []address.NetworkAddress
+	CloserNodes() []address.NodeID
 }
 
 type ProtoKadMessage interface {

@@ -13,6 +13,8 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 )
 
+const DefaultChanqueueCapacity = 1024
+
 // SimpleScheduler is a simple implementation of the Scheduler interface. It
 // uses a simple planner and a channel-based queue.
 type SimpleScheduler struct {
@@ -29,7 +31,7 @@ func NewSimpleScheduler(clk clock.Clock) *SimpleScheduler {
 	return &SimpleScheduler{
 		clk: clk,
 
-		queue:   chanqueue.NewChanQueue(100),
+		queue:   chanqueue.NewChanQueue(DefaultChanqueueCapacity),
 		planner: sp.NewSimplePlanner(clk),
 	}
 }

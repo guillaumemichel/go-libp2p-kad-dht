@@ -31,9 +31,7 @@ var (
 
 // TODO: Options: NClosestPeers, QueuedPeersPeerstoreTTL, concurrency int, timeout time.Duration
 
-type QueryState any
-
-type HandleResultFn func(context.Context, QueryState, address.NodeID, message.MinKadResponseMessage) (bool, QueryState)
+type HandleResultFn func(context.Context, address.NodeID, message.MinKadResponseMessage) (bool, []address.NodeID)
 
 type SimpleQuery struct {
 	ctx         context.Context
@@ -53,7 +51,6 @@ type SimpleQuery struct {
 	peerlist         *peerList
 
 	// success condition
-	state          QueryState
 	handleResultFn HandleResultFn
 }
 
@@ -64,9 +61,9 @@ type SimpleQuery struct {
 // reader, and the parameters to these events are determined by the query's
 // parameters. The query keeps track of the closest known peers to the target
 // key, and the peers that have been queried so far.
-func NewSimpleQuery(ctx context.Context, kadid key.KadKey, proto address.ProtocolID, req message.MinKadMessage,
-	resp message.MinKadResponseMessage, concurrency int, timeout time.Duration,
-	msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
+func NewSimpleQuery(ctx context.Context, kadid key.KadKey, proto address.ProtocolID,
+	req message.MinKadMessage, resp message.MinKadResponseMessage, concurrency int,
+	timeout time.Duration, msgEndpoint endpoint.Endpoint, rt routingtable.RoutingTable,
 	sched scheduler.Scheduler, handleResultFn HandleResultFn) *SimpleQuery {
 
 	ctx, span := util.StartSpan(ctx, "SimpleQuery.NewSimpleQuery",
@@ -95,7 +92,6 @@ func NewSimpleQuery(ctx context.Context, kadid key.KadKey, proto address.Protoco
 		inflightRequests: 0,
 		peerlist:         pl,
 		sched:            sched,
-		state:            nil,
 		handleResultFn:   handleResultFn,
 	}
 
@@ -202,32 +198,27 @@ func (q *SimpleQuery) handleResponse(ctx context.Context, id address.NodeID, res
 
 	q.peerlist.updatePeerStatusInPeerlist(id, queried)
 
-	//newPeers := message.ParsePeers(ctx, closerPeers)
-	newPeerIds := make([]address.NodeID, 0, len(closerPeers))
-
-	for _, na := range closerPeers {
-		id := na.NodeID()
+	for i, id := range closerPeers {
 		c, err := id.Key().Compare(q.rt.Self())
 		if err == nil && c == 0 {
 			// don't add self to queries or routing table
 			span.AddEvent("remote peer provided self as closer peer")
+			closerPeers = append(closerPeers[:i], closerPeers[i+1:]...)
 			continue
 		}
-		newPeerIds = append(newPeerIds, id)
 
-		q.msgEndpoint.MaybeAddToPeerstore(ctx, na, QueuedPeersPeerstoreTTL)
+		q.msgEndpoint.MaybeAddToPeerstore(ctx, id, QueuedPeersPeerstoreTTL)
 	}
 
-	q.peerlist.addToPeerlist(newPeerIds)
-
-	var stop bool
-	stop, q.state = q.handleResultFn(ctx, q.state, id, resp)
+	stop, usefulNodeID := q.handleResultFn(ctx, id, resp)
 	if stop {
 		// query is done, don't send any more requests
 		span.AddEvent("query over")
 		q.done = true
 		return
 	}
+
+	q.peerlist.addToPeerlist(usefulNodeID)
 
 	// we always want to have the maximal number of requests in flight
 	newRequestsToSend := q.concurrency - q.inflightRequests

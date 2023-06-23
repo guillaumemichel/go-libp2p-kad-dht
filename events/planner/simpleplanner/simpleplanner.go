@@ -8,31 +8,30 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
-	"github.com/libp2p/go-libp2p-kad-dht/util"
 )
 
 type SimplePlanner struct {
 	Clock clock.Clock
 
-	NextAction *SimpleTimedAction
+	NextAction *simpleTimedAction
 	lock       sync.Mutex
 }
 
 var _ planner.AwareActionPlanner = (*SimplePlanner)(nil)
 
-type SimpleTimedAction struct {
+type simpleTimedAction struct {
 	action action.Action
 	time   time.Time
-	next   *SimpleTimedAction
+	next   *simpleTimedAction
 }
 
-var _ planner.PlannedAction = (*SimpleTimedAction)(nil)
+var _ planner.PlannedAction = (*simpleTimedAction)(nil)
 
-func (a *SimpleTimedAction) Time() time.Time {
+func (a *simpleTimedAction) Time() time.Time {
 	return a.time
 }
 
-func (a *SimpleTimedAction) Action() action.Action {
+func (a *simpleTimedAction) Action() action.Action {
 	return a.action
 }
 
@@ -47,19 +46,19 @@ func (p *SimplePlanner) ScheduleAction(ctx context.Context, t time.Time, a actio
 	defer p.lock.Unlock()
 
 	if p.NextAction == nil {
-		p.NextAction = &SimpleTimedAction{action: a, time: t}
+		p.NextAction = &simpleTimedAction{action: a, time: t}
 		return p.NextAction
 	}
 
 	curr := p.NextAction
 	if t.Before(curr.time) {
-		p.NextAction = &SimpleTimedAction{action: a, time: t, next: curr}
+		p.NextAction = &simpleTimedAction{action: a, time: t, next: curr}
 		return p.NextAction
 	}
 	for curr.next != nil && t.After(curr.next.time) {
 		curr = curr.next
 	}
-	curr.next = &SimpleTimedAction{action: a, time: t, next: curr.next}
+	curr.next = &simpleTimedAction{action: a, time: t, next: curr.next}
 	return curr.next
 }
 
@@ -67,7 +66,7 @@ func (p *SimplePlanner) RemoveAction(ctx context.Context, pa planner.PlannedActi
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	a, ok := pa.(*SimpleTimedAction)
+	a, ok := pa.(*simpleTimedAction)
 	if !ok {
 		return
 	}
@@ -110,7 +109,7 @@ func (p *SimplePlanner) NextActionTime(context.Context) time.Time {
 	defer p.lock.Unlock()
 
 	if p.NextAction == nil {
-		return util.MaxTime
+		return planner.MaxTime
 	}
 	return p.NextAction.time
 }

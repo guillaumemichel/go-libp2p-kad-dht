@@ -4,7 +4,7 @@
 // 	protoc        v3.21.12
 // source: message.proto
 
-package ipfskadv1
+package ipfsv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

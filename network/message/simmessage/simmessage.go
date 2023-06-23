@@ -30,13 +30,6 @@ func (m *SimMessage) Target() *key.KadKey {
 	return m.target
 }
 
-func (m *SimMessage) CloserNodes() []address.NetworkAddress {
-	if m.closerPeers == nil {
-		return nil
-	}
-	nas := make([]address.NetworkAddress, len(m.closerPeers))
-	for i, peer := range m.closerPeers {
-		nas[i] = peer
-	}
-	return nas
+func (m *SimMessage) CloserNodes() []address.NodeID {
+	return m.closerPeers
 }

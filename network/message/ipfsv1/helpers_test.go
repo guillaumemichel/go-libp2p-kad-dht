@@ -1,4 +1,4 @@
-package ipfskadv1
+package ipfsv1
 
 import (
 	"context"
@@ -42,12 +42,10 @@ func createDummyPeerInfo(id, addr string) (*addrinfo.AddrInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &addrinfo.AddrInfo{
-		AddrInfo: peer.AddrInfo{
-			ID:    p,
-			Addrs: []multiaddr.Multiaddr{a},
-		},
-	}, nil
+	return addrinfo.NewAddrInfo(peer.AddrInfo{
+		ID:    p,
+		Addrs: []multiaddr.Multiaddr{a},
+	}), nil
 }
 
 func TestFindPeerResponse(t *testing.T) {
@@ -55,17 +53,17 @@ func TestFindPeerResponse(t *testing.T) {
 	selfAddr, err := createDummyPeerInfo("12BoooooSELF", "/ip4/1.1.1.1")
 	require.NoError(t, err)
 
-	fakeEndpoint := fakeendpoint.NewFakeEndpoint(selfAddr.NodeID(), nil, nil)
+	fakeEndpoint := fakeendpoint.NewFakeEndpoint(selfAddr, nil, nil)
 
 	nPeers := 5
+	closerPeers := make([]address.NodeID, nPeers)
 	closerIds := make([]address.NodeID, nPeers)
-	closerPeers := make([]address.NetworkAddress, nPeers)
 	for i := 0; i < nPeers; i++ {
 		s := strconv.Itoa(2 + i)
 		closerPeers[i], err = createDummyPeerInfo("12BooooPEER"+s, "/ip4/"+s+"."+s+"."+s+"."+s)
 		require.NoError(t, err)
 
-		closerIds[i] = closerPeers[i].NodeID()
+		closerIds[i] = closerPeers[i].(*addrinfo.AddrInfo).PeerID()
 		fakeEndpoint.MaybeAddToPeerstore(ctx, closerPeers[i], testPeerstoreTTL)
 	}
 

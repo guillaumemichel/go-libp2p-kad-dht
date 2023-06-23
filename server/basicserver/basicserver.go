@@ -10,7 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfsv1"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
@@ -51,12 +51,12 @@ func (s *BasicServer) HandleRequest(ctx context.Context, rpeer address.NodeID,
 	switch msg := msg.(type) {
 	case *simmessage.SimMessage:
 		return s.HandleFindNodeRequest(ctx, rpeer, msg)
-	case *ipfskadv1.Message:
+	case *ipfsv1.Message:
 		switch msg.GetType() {
-		case ipfskadv1.Message_FIND_NODE:
+		case ipfsv1.Message_FIND_NODE:
 			return s.HandleFindNodeRequest(ctx, rpeer, msg)
 		default:
-			return nil, fmt.Errorf("IPFSKadV1 Message unknown request type")
+			return nil, fmt.Errorf("IpfsV1 Message unknown request type")
 		}
 	default:
 		return nil, fmt.Errorf("unknown message format")
@@ -64,7 +64,7 @@ func (s *BasicServer) HandleRequest(ctx context.Context, rpeer address.NodeID,
 }
 
 func (s *BasicServer) HandleFindNodeRequest(ctx context.Context,
-	rpeer address.NetworkAddress, msg message.MinKadMessage) (message.MinKadMessage, error) {
+	rpeer address.NodeID, msg message.MinKadMessage) (message.MinKadMessage, error) {
 
 	var target key.KadKey
 
@@ -76,11 +76,11 @@ func (s *BasicServer) HandleFindNodeRequest(ctx context.Context,
 			return nil, fmt.Errorf("SimMessage target is nil")
 		}
 		target = *t
-	case *ipfskadv1.Message:
+	case *ipfsv1.Message:
 		p := peer.ID("")
 		if p.UnmarshalBinary(msg.GetKey()) != nil {
 			// invalid requested key (not a peer.ID)
-			return nil, fmt.Errorf("IPFSKadV1 Message contains invalid peer.ID")
+			return nil, fmt.Errorf("IpfsV1 Message contains invalid peer.ID")
 		}
 		t := peerid.NewPeerID(p)
 		target = t.Key()
@@ -92,7 +92,7 @@ func (s *BasicServer) HandleFindNodeRequest(ctx context.Context,
 	s.endpoint.MaybeAddToPeerstore(ctx, rpeer, s.peerstoreTTL)
 
 	_, span := util.StartSpan(ctx, "SimServer.HandleFindNodeRequest", trace.WithAttributes(
-		attribute.Stringer("Requester", rpeer.NodeID()),
+		attribute.Stringer("Requester", rpeer),
 		attribute.Stringer("Target", target)))
 	defer span.End()
 
@@ -111,14 +111,14 @@ func (s *BasicServer) HandleFindNodeRequest(ctx context.Context,
 	switch msg.(type) {
 	case *simmessage.SimMessage:
 		resp = simmessage.NewSimResponse(peers)
-	case *ipfskadv1.Message:
+	case *ipfsv1.Message:
 		nEndpoint, ok := s.endpoint.(endpoint.NetworkedEndpoint)
 		if !ok {
 			err = fmt.Errorf("endpoint is not a NetworkedEndpoint")
 			span.RecordError(err)
 			return nil, err
 		}
-		resp = ipfskadv1.FindPeerResponse(peers, nEndpoint)
+		resp = ipfsv1.FindPeerResponse(peers, nEndpoint)
 	}
 
 	return resp, nil

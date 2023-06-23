@@ -13,7 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/fakeendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message/simmessage"
-	sq "github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
+	sq "github.com/libp2p/go-libp2p-kad-dht/query/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/server"
@@ -100,12 +100,13 @@ func findNode(ctx context.Context) {
 	resp := &simmessage.SimMessage{}
 
 	// handleResFn is called when a response is received during the query process
-	handleResFn := func(_ context.Context, _ sq.QueryState, id address.NodeID,
-		msg message.MinKadResponseMessage) (bool, sq.QueryState) {
+	handleResFn := func(_ context.Context, id address.NodeID,
+		msg message.MinKadResponseMessage) (bool, []address.NodeID) {
 		resp := msg.(*simmessage.SimMessage)
 		fmt.Println("got a response from", id, "with", resp.CloserNodes())
+
 		for _, peer := range resp.CloserNodes() {
-			if peer.NodeID().String() == ids[3].NodeID().String() {
+			if peer.String() == ids[3].NodeID().String() {
 				// the response contains the address of D (ids[3])
 				fmt.Println("success")
 				// returning true will stop the query process
@@ -113,7 +114,7 @@ func findNode(ctx context.Context) {
 			}
 		}
 		// returning false will continue the query process
-		return false, nil
+		return false, resp.CloserNodes()
 	}
 
 	// create a query on A (using A's scheduler, endpoint and routing table),

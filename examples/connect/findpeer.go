@@ -15,8 +15,8 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p-kad-dht/network/endpoint/libp2pendpoint"
 	"github.com/libp2p/go-libp2p-kad-dht/network/message"
-	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfskadv1"
-	"github.com/libp2p/go-libp2p-kad-dht/routing/simplerouting/simplequery"
+	"github.com/libp2p/go-libp2p-kad-dht/network/message/ipfsv1"
+	"github.com/libp2p/go-libp2p-kad-dht/query/simplequery"
 	"github.com/libp2p/go-libp2p-kad-dht/routingtable/simplert"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
 )
@@ -69,17 +69,17 @@ func FindPeer(ctx context.Context) {
 	fmt.Println("connected to friend")
 
 	// target is the peer we want to find
-	target, err := peer.Decode("12D3KooWMBvV4cphtBLbHQysG6c5nP265aEnXZarCPAHB2UPSGiT")
+	target, err := peer.Decode("QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa")
 	if err != nil {
 		panic(err)
 	}
 	targetID := peerid.NewPeerID(target)
 
 	// create a find peer request message
-	req := ipfskadv1.FindPeerRequest(targetID)
+	req := ipfsv1.FindPeerRequest(targetID)
 	// empty response message to be filled by the query process, the protobuf
 	// message must be know to parse the response
-	var resp message.ProtoKadResponseMessage = &ipfskadv1.Message{}
+	var resp message.ProtoKadResponseMessage = &ipfsv1.Message{}
 	// add friend to routing table
 	success, err := rt.AddPeer(ctx, friendID)
 	if err != nil || !success {
@@ -88,10 +88,10 @@ func FindPeer(ctx context.Context) {
 
 	// endCond is used to terminate the simulation once the query is done
 	endCond := false
-	handleResultsFn := func(ctx context.Context, state simplequery.QueryState,
-		id address.NodeID, resp message.MinKadResponseMessage) (bool, simplequery.QueryState) {
+	handleResultsFn := func(ctx context.Context, id address.NodeID,
+		resp message.MinKadResponseMessage) (bool, []address.NodeID) {
 		// parse response to ipfs dht message
-		msg, ok := resp.(*ipfskadv1.Message)
+		msg, ok := resp.(*ipfsv1.Message)
 		if !ok {
 			fmt.Println("invalid response!")
 			return false, nil
@@ -112,7 +112,10 @@ func FindPeer(ctx context.Context) {
 		if endCond {
 			fmt.Println("  - target found!", target)
 		}
-		return endCond, nil
+		// return peers and not msg.CloserPeers because we want to return the
+		// PeerIDs and not AddrInfos. The returned NodeID is used to update the
+		// query. The AddrInfo is only useful for the message endpoint.
+		return endCond, peers
 	}
 
 	// create the query, using the target kademlia key as target, the IPFS DHT

@@ -8,7 +8,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 	ta "github.com/libp2p/go-libp2p-kad-dht/events/action/testaction"
-	"github.com/libp2p/go-libp2p-kad-dht/util"
+	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 	"github.com/stretchr/testify/require"
 )
 
@@ -109,7 +109,7 @@ func TestNextActionTime(t *testing.T) {
 	}
 
 	ti := p.NextActionTime(ctx)
-	require.Equal(t, util.MaxTime, ti)
+	require.Equal(t, planner.MaxTime, ti)
 
 	t0 := clk.Now().Add(time.Second)
 	p.ScheduleAction(ctx, t0, actions[0])
@@ -139,5 +139,5 @@ func TestNextActionTime(t *testing.T) {
 	clk.Add(time.Hour)
 	require.Equal(t, 2, len(p.PopOverdueActions(ctx)))
 	ti = p.NextActionTime(ctx)
-	require.Equal(t, util.MaxTime, ti)
+	require.Equal(t, planner.MaxTime, ti)
 }

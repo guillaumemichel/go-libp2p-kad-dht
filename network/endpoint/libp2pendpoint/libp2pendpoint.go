@@ -111,12 +111,12 @@ func (msgEndpoint *Libp2pEndpoint) DialPeer(ctx context.Context, id address.Node
 }
 
 func (msgEndpoint *Libp2pEndpoint) MaybeAddToPeerstore(ctx context.Context,
-	na address.NetworkAddress, ttl time.Duration) error {
+	id address.NodeID, ttl time.Duration) error {
 	_, span := util.StartSpan(ctx, "Libp2pEndpoint.MaybeAddToPeerstore",
-		trace.WithAttributes(attribute.String("PeerID", na.NodeID().String())))
+		trace.WithAttributes(attribute.String("PeerID", id.String())))
 	defer span.End()
 
-	ai, ok := na.(*addrinfo.AddrInfo)
+	ai, ok := id.(*addrinfo.AddrInfo)
 	if !ok {
 		return endpoint.ErrInvalidPeer
 	}
@@ -161,7 +161,9 @@ func (e *Libp2pEndpoint) SendRequestHandleResponse(ctx context.Context,
 
 		p, ok := n.(*peerid.PeerID)
 		if !ok {
-			err = errors.New("Libp2pEndpoint requires peer.ID")
+			err = fmt.Errorf("Libp2pEndpoint requires peer.ID, %T", n)
+			fmt.Printf("Libp2pEndpoint requires peer.ID, %T", n)
+
 			span.RecordError(err)
 			responseHandlerFn(ctx, nil, err)
 			return
@@ -279,7 +281,7 @@ func (e *Libp2pEndpoint) KadKey() key.KadKey {
 	return peerid.PeerID{ID: e.host.ID()}.Key()
 }
 
-func (e *Libp2pEndpoint) NetworkAddress(n address.NodeID) (address.NetworkAddress, error) {
+func (e *Libp2pEndpoint) NetworkAddress(n address.NodeID) (address.NodeID, error) {
 	p, ok := n.(peerid.PeerID)
 	if !ok {
 		return nil, errors.New("invalid peer.ID")

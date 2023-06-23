@@ -7,8 +7,8 @@ import (
 
 	"github.com/benbjohnson/clock"
 	ta "github.com/libp2p/go-libp2p-kad-dht/events/action/testaction"
+	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
-	"github.com/libp2p/go-libp2p-kad-dht/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,6 +70,6 @@ func TestSimpleScheduler(t *testing.T) {
 	sched.RunOne(ctx)
 	require.False(t, actions[6].Ran)
 	// empty queue
-	require.Equal(t, util.MaxTime, sched.NextActionTime(ctx))
+	require.Equal(t, planner.MaxTime, sched.NextActionTime(ctx))
 
 }

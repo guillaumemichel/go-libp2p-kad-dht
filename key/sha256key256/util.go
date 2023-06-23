@@ -26,11 +26,3 @@ func StringKadID(s string) key.KadKey {
 	hasher.Write([]byte(s))
 	return key.KadKey(hasher.Sum(nil))
 }
-
-func zeroBytes(n int) []byte {
-	return make([]byte, n)
-}
-
-func ZeroKey() key.KadKey {
-	return key.KadKey(zeroBytes(Keysize))
-}

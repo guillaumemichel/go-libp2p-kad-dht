@@ -7,6 +7,9 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/events/action"
 )
 
+// MaxTime is the maximum time.Time value
+var MaxTime = time.Unix(1<<63-62135596801, 999999999)
+
 // PlannedAction is an interface for actions that are scheduled to run at a
 // specific time.
 type PlannedAction interface {

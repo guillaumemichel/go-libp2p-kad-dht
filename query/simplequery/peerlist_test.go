@@ -3,7 +3,6 @@ package simplequery
 import (
 	"testing"
 
-	"github.com/libp2p/go-libp2p-kad-dht/key/sha256key256"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address"
 	"github.com/libp2p/go-libp2p-kad-dht/network/address/peerid"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -12,7 +11,7 @@ import (
 
 func TestAddPeers(t *testing.T) {
 	// create empty peer list
-	pl := newPeerList(sha256key256.ZeroKey())
+	pl := newPeerList(make([]byte, 32))
 
 	require.Nil(t, pl.closest)
 	require.Nil(t, pl.closestQueued)
@@ -115,16 +114,16 @@ func TestPeerlistCornerCases(t *testing.T) {
 
 	for _, peerids := range emptyPeeridLists {
 		// adding them to a peerlist should result in an empty list
-		require.Nil(t, sliceToPeerInfos(sha256key256.ZeroKey(), peerids))
+		require.Nil(t, sliceToPeerInfos(make([]byte, 32), peerids))
 
-		pl := newPeerList(sha256key256.ZeroKey())
+		pl := newPeerList(make([]byte, 32))
 		pl.addToPeerlist(peerids)
 		require.Nil(t, pl.closest)
 		require.Nil(t, pl.closestQueued)
 		require.Equal(t, 0, pl.queuedCount)
 	}
 
-	pl := newPeerList(sha256key256.ZeroKey())
+	pl := newPeerList(make([]byte, 32))
 
 	singlePeerList0 := []address.NodeID{peerid.PeerID{ID: peer.ID(byte(0))}}
 	// 6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d
@@ -157,7 +156,7 @@ func TestPeerlistCornerCases(t *testing.T) {
 
 func TestUpdatePeerStatusInPeerlist(t *testing.T) {
 	// create empty peer list
-	pl := newPeerList(sha256key256.ZeroKey())
+	pl := newPeerList(make([]byte, 32))
 
 	// add initial peers
 	nPeers := 3
@@ -192,7 +191,7 @@ func TestUpdatePeerStatusInPeerlist(t *testing.T) {
 
 func TestPopClosestQueued(t *testing.T) {
 	// create empty peer list
-	pl := newPeerList(sha256key256.ZeroKey())
+	pl := newPeerList(make([]byte, 32))
 
 	// add initial peers
 	nPeers := 3
@@ -222,7 +221,7 @@ func TestPopClosestQueued(t *testing.T) {
 	require.Equal(t, nil, pl.popClosestQueued())
 	require.Equal(t, 0, pl.queuedCount)
 
-	pl = newPeerList(sha256key256.ZeroKey())
+	pl = newPeerList(make([]byte, 32))
 
 	pl.addToPeerlist(peerids)
 	require.Equal(t, 3, pl.queuedCount)

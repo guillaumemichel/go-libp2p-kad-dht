@@ -2,6 +2,10 @@
 
 ## TODOs:
 
+Missing features:
+- Libp2p notifee
+
+New features:
 - Use rcmgr
 - Use signed peer records
 - Better Provider/IPNS Record Store

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/libp2p/go-libp2p-kad-dht/events/planner"
 	"github.com/libp2p/go-libp2p-kad-dht/events/scheduler"
 	"github.com/libp2p/go-libp2p-kad-dht/events/simulator"
 	"github.com/libp2p/go-libp2p-kad-dht/util"
@@ -48,14 +49,14 @@ func (s *LiteSimulator) Run(ctx context.Context) {
 
 	for len(nextActions) > 0 {
 		// find the time of the next action to be run
-		minTime := util.MaxTime
+		minTime := planner.MaxTime
 		for _, t := range nextActions {
 			if t.Before(minTime) {
 				minTime = t
 			}
 		}
 
-		if minTime == util.MaxTime {
+		if minTime == planner.MaxTime {
 			// no more actions to run
 			break
 		}
